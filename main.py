@@ -1,25 +1,26 @@
 import os
 import csv
-import json
 import base64
 import requests
 import subprocess
 from dotenv import load_dotenv
-from rich import print as rprint
 from rich.table import Table
 from rich.console import Console
 from rich.prompt import Prompt, Confirm
-import xml.dom.minidom
 import time
-from datetime import datetime
+import threading
 
+import json
+import socketio
 # 載入 .env 檔案
 load_dotenv()
 
 # 設定常數
 VPPTOKEN_PATH = './ISHA_APP_token.vpptoken'
-SERVER_URL = os.getenv('SERVER_URL', 'https://mdm.isafe.org.tw')
+
 API_KEY = os.getenv('API_KEY')
+MDM_URL = os.getenv('MDM_URL')
+WEBSOCKET_URL = os.getenv('WEBSOCKET_URL')
 DEVICE_LIST_CSV = './devices.csv'
 MDMCTL_BIN = 'mdmctl'
 PROFILES_DIR = './profiles'
@@ -29,6 +30,84 @@ os.makedirs(PROFILES_DIR, exist_ok=True)
 
 console = Console()
 
+# 創建 Socket.IO 客戶端
+sio = socketio.Client()
+
+
+@sio.event
+def connect():
+    console.print("[SocketIO] 已連接到 webhook 伺服器!", style="bold green")
+    sio.emit('auth', {'api_key': API_KEY})
+
+@sio.on('auth_result')
+def on_auth_result(data):
+    print("認證回應:", data)
+    if data['status'] == 'ok':
+        print("Auth success! Now ready to receive events.")
+    else:
+        print("Auth failed!")
+
+@sio.event
+def disconnect():
+    console.print("[SocketIO] 與 webhook 伺服器斷開連接", style="bold red")
+
+
+@sio.on('mdm_event')
+def on_mdm_event(data):
+    console.print("[SocketIO] 收到 MDM 事件：", style="bold green")
+    console.print(json.dumps(data, indent=2, ensure_ascii=False))
+
+    # 處理不同類型的事件
+    if 'acknowledge_event' in data:
+        console.print("[SocketIO] Acknowledge 事件：", style="bold blue")
+        console.print(json.dumps(data['acknowledge_event'], indent=2, ensure_ascii=False))
+
+        # 如果有 raw_payload，嘗試解碼
+        if 'raw_payload' in data['acknowledge_event']:
+            try:
+                raw = data['acknowledge_event']['raw_payload']
+                decoded = base64.b64decode(raw).decode(errors='ignore')
+                console.print("[SocketIO] 解碼的 raw_payload：", style="bold green")
+                console.print(decoded)
+            except Exception as e:
+                console.print(f"[SocketIO] 解碼 raw_payload 錯誤：{str(e)}", style="bold red")
+
+    elif 'checkin_event' in data:
+        console.print("[SocketIO] Checkin 事件：", style="bold blue")
+        console.print(json.dumps(data['checkin_event'], indent=2, ensure_ascii=False))
+
+    elif data.get('type') == 'server_info':
+        console.print(f"[SocketIO] 伺服器訊息: {data.get('message')}", style="bold cyan")
+
+    else:
+        console.print("[SocketIO] 其他 MDM 事件：", style="bold blue")
+        console.print(json.dumps(data, indent=2, ensure_ascii=False))
+
+
+def start_socketio_client():
+    # 從環境變數或配置獲取 webhook 伺服器地址
+    ws_host = os.getenv('WEBHOOK_HOST', WEBSOCKET_URL)
+    ws_port = os.getenv('WEBHOOK_PORT', '443')
+    socketio_url = f"https://{ws_host}:{ws_port}"
+
+    console.print(f"[SocketIO] 正在連接到 webhook 伺服器 {socketio_url}", style="bold blue")
+
+    def run_client():
+        while True:
+            try:
+                if not sio.connected:
+                    sio.connect(socketio_url)
+                    console.print("[SocketIO] 連接成功", style="bold green")
+                time.sleep(1)  # 定期檢查連接狀態
+            except Exception as e:
+                console.print(f"[SocketIO] 連接錯誤: {str(e)}", style="bold red")
+                # 連接失敗，等待後重試
+                time.sleep(5)
+
+    # 在單獨的線程中啟動 Socket.IO 客戶端
+    thread = threading.Thread(target=run_client, daemon=True)
+    thread.start()
+    return thread
 
 
 def run_mdmctl_get_devices(output_file):
@@ -472,7 +551,7 @@ def wait_device_info(server_url, api_key, udid, max_retry=5, sleep_time=4):
 
 def select_devices():
     # 先嘗試線上取得裝置
-    status_code = get_device_from_net(SERVER_URL, API_KEY, DEVICE_LIST_CSV)
+    status_code = get_device_from_net(MDM_URL, API_KEY, DEVICE_LIST_CSV)
     if status_code != 200:
         # 線上失敗則用本地方式
         console.print("⚠️ 線上取得裝置失敗，改用本地 mdmctl！", style="bold yellow")
@@ -538,6 +617,7 @@ def select_devices_with_filter(filter_option=None):
 
 
 def show_menu():
+
     menu_table = Table(title="🎛️ MicroMDM 管理工具", show_header=False, box=None)
     menu_table.add_column("編號", style="cyan")
     menu_table.add_column("功能", style="green")
@@ -581,6 +661,8 @@ def show_menu():
 
 def main():
     while True:
+        socketio_thread = start_socketio_client()
+
         choice = show_menu()
         global response
         if choice == "0":
@@ -604,8 +686,8 @@ def main():
             sToken = load_sToken(VPPTOKEN_PATH)
             for udid, serial in devices:
                 assign_vpp_license(sToken, app_id, serial)
-                response = install_app_to_device(SERVER_URL, API_KEY, udid, app_id)
-                send_push_to_device(SERVER_URL, API_KEY, udid)
+                response = install_app_to_device(MDM_URL, API_KEY, udid, app_id)
+                send_push_to_device(MDM_URL, API_KEY, udid)
             if response == 201:
                 console.print("✅ 作業完成！", style="bold green")
             else:
@@ -616,8 +698,8 @@ def main():
         elif choice == "2":
             for udid, _ in devices:
                 identifier = Prompt.ask("請輸入要安裝的 App 識別碼（Bundle ID）")
-                response = install_enterprise_app(SERVER_URL, API_KEY, udid, identifier)
-                send_push_to_device(SERVER_URL, API_KEY, udid)
+                response = install_enterprise_app(MDM_URL, API_KEY, udid, identifier)
+                send_push_to_device(MDM_URL, API_KEY, udid)
             if response == 201:
                 console.print("✅ 作業完成！", style="bold green")
             else:
@@ -628,10 +710,10 @@ def main():
         elif choice == "3":
             pin = Prompt.ask("🔐 請輸入鎖定 PIN（留空則不設定密碼）", default="")
             for udid, _ in devices:
-                response = lock_device(SERVER_URL, API_KEY, udid, pin if pin else None)
+                response = lock_device(MDM_URL, API_KEY, udid, pin if pin else None)
                 if response == 201:
-                    send_push_to_device(SERVER_URL, API_KEY, udid)
-                    info = wait_device_info(SERVER_URL, API_KEY, udid, max_retry=20, sleep_time=10)
+                    send_push_to_device(MDM_URL, API_KEY, udid)
+                    info = wait_device_info(MDM_URL, API_KEY, udid, max_retry=20, sleep_time=10)
                     if info:
                         console.print(f"✅ 裝置資訊 ({udid}):", style="bold green")
                         console.print(json.dumps(info, ensure_ascii=False, indent=2))
@@ -647,8 +729,8 @@ def main():
             message = Prompt.ask("📩 請輸入要顯示的訊息內容")
             pin = Prompt.ask("🔐 請輸入鎖定 PIN（留空則不設定密碼）", default="")
             for udid, _ in devices:
-                response = lock_device(SERVER_URL, API_KEY, udid, pin if pin else None, message)
-                send_push_to_device(SERVER_URL, API_KEY, udid)
+                response = lock_device(MDM_URL, API_KEY, udid, pin if pin else None, message)
+                send_push_to_device(MDM_URL, API_KEY, udid)
             if response == 201:
                 console.print("✅ 作業完成！", style="bold green")
             else:
@@ -658,8 +740,8 @@ def main():
         # 重開機
         elif choice == "5":
             for udid, _ in devices:
-                response = restart_device(SERVER_URL, API_KEY, udid)
-                send_push_to_device(SERVER_URL, API_KEY, udid)
+                response = restart_device(MDM_URL, API_KEY, udid)
+                send_push_to_device(MDM_URL, API_KEY, udid)
             if response.status_code == 201:
                 console.print("✅ 作業完成！", style="bold green")
             else:
@@ -670,8 +752,8 @@ def main():
         # 清除密碼
         elif choice == "6":
             for udid, _ in devices:
-                response = clear_passcode(SERVER_URL, API_KEY, udid)
-                send_push_to_device(SERVER_URL, API_KEY, udid)
+                response = clear_passcode(MDM_URL, API_KEY, udid)
+                send_push_to_device(MDM_URL, API_KEY, udid)
             if response == 201:
                 console.print("✅ 作業完成！", style="bold green")
             else:
@@ -686,8 +768,8 @@ def main():
             else:
                 identifier = Prompt.ask("請輸入要移除的應用程式識別碼 (Bundle ID)")
             for udid, _ in devices:
-                response = remove_application(SERVER_URL, API_KEY, udid, identifier)
-                send_push_to_device(SERVER_URL, API_KEY, udid)
+                response = remove_application(MDM_URL, API_KEY, udid, identifier)
+                send_push_to_device(MDM_URL, API_KEY, udid)
             if response == 201:
                 console.print("✅ 作業完成！", style="bold green")
             else:
@@ -702,8 +784,8 @@ def main():
                 continue
             pin = Prompt.ask("🔐 請輸入解鎖 PIN（留空則不設定）", default="")
             for udid, _ in devices:
-                response = erase_device(SERVER_URL, API_KEY, udid, pin if pin else None)
-                send_push_to_device(SERVER_URL, API_KEY, udid)
+                response = erase_device(MDM_URL, API_KEY, udid, pin if pin else None)
+                send_push_to_device(MDM_URL, API_KEY, udid)
             if response == 201:
                 console.print("✅ 作業完成！", style="bold green")
             else:
@@ -715,15 +797,10 @@ def main():
         # 查詢裝置資訊
         elif choice == "9":
             for udid, _ in devices:
-                response = get_device_info(SERVER_URL, API_KEY, udid)
+                response = get_device_info(MDM_URL, API_KEY, udid)
                 if response == 201:
-                    send_push_to_device(SERVER_URL, API_KEY, udid)
-                    info = wait_device_info(SERVER_URL, API_KEY, udid, max_retry=20, sleep_time=10)
-                    if info:
-                        console.print(f"✅ 裝置資訊 ({udid}):", style="bold green")
-                        console.print(json.dumps(info, ensure_ascii=False, indent=2))
-                    else:
-                        console.print(f"❌ 查詢裝置資訊失敗（裝置未即時回報，請稍後再試）", style="bold red")
+                    send_push_to_device(MDM_URL, API_KEY, udid)
+
                 else:
                     console.print("❌ 作業失敗，詳細內容如下：", style="bold red")
                     console.print(response)
@@ -731,7 +808,7 @@ def main():
         # 查詢已安裝 App 清單
         elif choice == "10":
             for udid, _ in devices:
-                response = get_installed_apps(SERVER_URL, API_KEY, udid)
+                response = get_installed_apps(MDM_URL, API_KEY, udid)
             if response == 201:
                 console.print("✅ 作業完成！", style="bold green")
             else:
@@ -741,7 +818,7 @@ def main():
         # 查詢已安裝描述檔清單
         elif choice == "11":
             for udid, _ in devices:
-                response = get_profiles(SERVER_URL, API_KEY, udid)
+                response = get_profiles(MDM_URL, API_KEY, udid)
             if response == 201:
                 console.print("✅ 作業完成！", style="bold green")
             else:
@@ -751,7 +828,7 @@ def main():
         # 查詢可用系統更新
         elif choice == "12":
             for udid, _ in devices:
-                response = get_os_updates(SERVER_URL, API_KEY, udid)
+                response = get_os_updates(MDM_URL, API_KEY, udid)
             if response == 201:
                 console.print("✅ 作業完成！", style="bold green")
             else:
@@ -775,8 +852,8 @@ def main():
             action_choice = Prompt.ask("請選擇安裝動作", choices=list(install_actions.keys()), default="1")
             install_action = install_actions[action_choice]
             for udid, _ in devices:
-                response = schedule_os_update(SERVER_URL, API_KEY, udid, product_key, product_version, install_action)
-                send_push_to_device(SERVER_URL, API_KEY, udid)
+                response = schedule_os_update(MDM_URL, API_KEY, udid, product_key, product_version, install_action)
+                send_push_to_device(MDM_URL, API_KEY, udid)
             if response == 201:
                 console.print("✅ 作業完成！", style="bold green")
             else:
@@ -803,8 +880,8 @@ def main():
                     console.print("無效選擇", style="bold red")
                     continue
             for udid, _ in devices:
-                response = install_profile(SERVER_URL, API_KEY, udid, profile_path)
-                send_push_to_device(SERVER_URL, API_KEY, udid)
+                response = install_profile(MDM_URL, API_KEY, udid, profile_path)
+                send_push_to_device(MDM_URL, API_KEY, udid)
             if response == 201:
                 console.print("✅ 作業完成！", style="bold green")
             else:
@@ -815,8 +892,8 @@ def main():
         elif choice == "15":
             identifier = Prompt.ask("請輸入要移除的描述檔識別碼 (PayloadIdentifier)")
             for udid, _ in devices:
-                response = remove_profile(SERVER_URL, API_KEY, udid, identifier)
-                send_push_to_device(SERVER_URL, API_KEY, udid)
+                response = remove_profile(MDM_URL, API_KEY, udid, identifier)
+                send_push_to_device(MDM_URL, API_KEY, udid)
             if response == 201:
                 console.print("✅ 作業完成！", style="bold green")
             else:
@@ -829,8 +906,8 @@ def main():
             username = Prompt.ask("請輸入使用者名稱 (例如: john)")
             lock_info = Confirm.ask("是否鎖定帳號資訊防止變更?", default=True)
             for udid, _ in devices:
-                response = setup_account(SERVER_URL, API_KEY, udid, fullname, username, lock_info)
-                send_push_to_device(SERVER_URL, API_KEY, udid)
+                response = setup_account(MDM_URL, API_KEY, udid, fullname, username, lock_info)
+                send_push_to_device(MDM_URL, API_KEY, udid)
             if response == 201:
                 console.print("✅ 作業完成！", style="bold green")
             else:
@@ -840,8 +917,8 @@ def main():
         # 標記裝置已完成設定
         elif choice == "17":
             for udid, _ in devices:
-                response = device_configured(SERVER_URL, API_KEY, udid)
-                send_push_to_device(SERVER_URL, API_KEY, udid)
+                response = device_configured(MDM_URL, API_KEY, udid)
+                send_push_to_device(MDM_URL, API_KEY, udid)
             if response == 201:
                 console.print("✅ 作業完成！", style="bold green")
             else:
@@ -851,7 +928,7 @@ def main():
         # 獲取啟用鎖繞過碼
         elif choice == "18":
             for udid, _ in devices:
-                response = get_activation_lock_bypass(SERVER_URL, API_KEY, udid)
+                response = get_activation_lock_bypass(MDM_URL, API_KEY, udid)
             if response == 201:
                 console.print("✅ 作業完成！", style="bold green")
             else:
@@ -861,7 +938,7 @@ def main():
         # 獲取安全資訊
         elif choice == "19":
             for udid, _ in devices:
-                response = get_security_info(SERVER_URL, API_KEY, udid)
+                response = get_security_info(MDM_URL, API_KEY, udid)
             if response == 201:
                 console.print("✅ 作業完成！", style="bold green")
             else:
@@ -871,7 +948,7 @@ def main():
         # 獲取憑證清單
         elif choice == "20":
             for udid, _ in devices:
-                response = get_certificate_list(SERVER_URL, API_KEY, udid)
+                response = get_certificate_list(MDM_URL, API_KEY, udid)
             if response == 201:
                 console.print("✅ 作業完成！", style="bold green")
             else:
@@ -885,7 +962,7 @@ def main():
                 console.print("已取消操作", style="bold yellow")
                 continue
             for udid, _ in devices:
-                response = clear_command_queue(SERVER_URL, API_KEY, udid)
+                response = clear_command_queue(MDM_URL, API_KEY, udid)
             if response == 200:
                 console.print("✅ 作業完成！", style="bold green")
             else:
@@ -895,7 +972,7 @@ def main():
         # 檢查命令佇列
         elif choice == "22":
             for udid, _ in devices:
-                response = inspect_command_queue(SERVER_URL, API_KEY, udid)
+                response = inspect_command_queue(MDM_URL, API_KEY, udid)
             if response == 200:
                 console.print("✅ 作業完成！", style="bold green")
             else:
@@ -905,7 +982,7 @@ def main():
         # 發送 Push 通知
         elif choice == "23":
             for udid, _ in devices:
-                response = send_push_to_device(SERVER_URL, API_KEY, udid)
+                response = send_push_to_device(MDM_URL, API_KEY, udid)
             if response == 200:
                 console.print("✅ 作業完成！", style="bold green")
             else:
@@ -914,7 +991,7 @@ def main():
 
         # 同步 DEP 裝置
         elif choice == "24":
-            response = sync_dep_devices(SERVER_URL, API_KEY)
+            response = sync_dep_devices(MDM_URL, API_KEY)
             if response == 200:
                 console.print("✅ 作業完成！", style="bold green")
             else:

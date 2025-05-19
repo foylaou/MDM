@@ -54,13 +54,13 @@ def disconnect():
 
 @sio.on('mdm_event')
 def on_mdm_event(data):
-    console.print("[SocketIO] 收到 MDM 事件：", style="bold green")
-    console.print(json.dumps(data, indent=2, ensure_ascii=False))
+    # console.print("[SocketIO] 收到 MDM 事件：", style="bold green")
+    # console.print(json.dumps(data, indent=2, ensure_ascii=False))
 
     # 處理不同類型的事件
     if 'acknowledge_event' in data:
-        console.print("[SocketIO] Acknowledge 事件：", style="bold blue")
-        console.print(json.dumps(data['acknowledge_event'], indent=2, ensure_ascii=False))
+        # console.print("[SocketIO] Acknowledge 事件：", style="bold blue")
+        # console.print(json.dumps(data['acknowledge_event'], indent=2, ensure_ascii=False))
 
         # 如果有 raw_payload，嘗試解碼
         if 'raw_payload' in data['acknowledge_event']:
@@ -73,8 +73,9 @@ def on_mdm_event(data):
                 console.print(f"[SocketIO] 解碼 raw_payload 錯誤：{str(e)}", style="bold red")
 
     elif 'checkin_event' in data:
-        console.print("[SocketIO] Checkin 事件：", style="bold blue")
-        console.print(json.dumps(data['checkin_event'], indent=2, ensure_ascii=False))
+        pass
+        # console.print("[SocketIO] Checkin 事件：", style="bold blue")
+        # console.print(json.dumps(data['checkin_event'], indent=2, ensure_ascii=False))
 
     elif data.get('type') == 'server_info':
         console.print(f"[SocketIO] 伺服器訊息: {data.get('message')}", style="bold cyan")

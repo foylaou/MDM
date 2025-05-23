@@ -1,1 +1,6 @@
 /.env
+./profiles
+/profiles/*.mobileconfig
+/profiles/*.pem
+/*.vpptoken
+/*.csv

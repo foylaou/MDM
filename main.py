@@ -537,6 +537,94 @@ def parse_app_id(input_str):
     return input_str.strip()
 
 
+def enable_lost_mode(server_url, api_key, udid, message=None, phone_number=None, footnote=None):
+    """啟用遺失模式"""
+    console.print(f"🔍 啟用遺失模式 {udid}...", style="bold red")
+    headers = {"Content-Type": "application/json"}
+    auth = ('micromdm', api_key)
+    payload = {
+        "udid": udid,
+        "request_type": "EnableLostMode"
+    }
+
+    # 添加可選參數
+    if message:
+        payload["message"] = message
+    if phone_number:
+        payload["phone_number"] = phone_number
+    if footnote:
+        payload["footnote"] = footnote
+
+    resp = requests.post(f"{server_url}/v1/commands", headers=headers, auth=auth, data=json.dumps(payload))
+    console.print(f"✅ 遺失模式啟用回應 ({udid}):", resp.status_code, style="green")
+    console.print(resp.text)
+    return resp.status_code
+
+
+def disable_lost_mode(server_url, api_key, udid):
+    """關閉遺失模式"""
+    console.print(f"🔓 關閉遺失模式 {udid}...", style="bold green")
+    headers = {"Content-Type": "application/json"}
+    auth = ('micromdm', api_key)
+    payload = {
+        "udid": udid,
+        "request_type": "DisableLostMode"
+    }
+
+    resp = requests.post(f"{server_url}/v1/commands", headers=headers, auth=auth, data=json.dumps(payload))
+    console.print(f"✅ 遺失模式關閉回應 ({udid}):", resp.status_code, style="green")
+    console.print(resp.text)
+    return resp.status_code
+
+
+def get_device_location(server_url, api_key, udid):
+    """獲取設備位置（僅在遺失模式下可用）"""
+    console.print(f"📍 獲取設備位置 {udid}...", style="bold blue")
+    headers = {"Content-Type": "application/json"}
+    auth = ('micromdm', api_key)
+    payload = {
+        "udid": udid,
+        "request_type": "DeviceLocation"
+    }
+
+    resp = requests.post(f"{server_url}/v1/commands", headers=headers, auth=auth, data=json.dumps(payload))
+    console.print(f"✅ 設備定位回應 ({udid}):", resp.status_code, style="green")
+    console.print(resp.text)
+
+    # 處理常見錯誤碼
+    if resp.status_code == 200:
+        try:
+            response_data = resp.json()
+            if 'error_code' in response_data:
+                error_code = response_data['error_code']
+                if error_code == 12067:
+                    console.print(f"⚠️ 錯誤：設備 {udid} 未處於遺失模式", style="bold yellow")
+                elif error_code == 12068:
+                    console.print(f"⚠️ 錯誤：設備 {udid} 位置未知", style="bold yellow")
+                elif error_code == 12078:
+                    console.print(f"⚠️ 錯誤：設備 {udid} 在遺失模式下收到無效命令", style="bold yellow")
+        except:
+            pass
+
+    return resp.status_code
+
+
+def play_lost_mode_sound(server_url, api_key, udid):
+    """播放遺失模式聲音（僅在遺失模式下可用）"""
+    console.print(f"🔊 播放遺失模式聲音 {udid}...", style="bold blue")
+    headers = {"Content-Type": "application/json"}
+    auth = ('micromdm', api_key)
+    payload = {
+        "udid": udid,
+        "request_type": "PlayLostModeSound"
+    }
+
+    resp = requests.post(f"{server_url}/v1/commands", headers=headers, auth=auth, data=json.dumps(payload))
+    console.print(f"✅ 播放聲音回應 ({udid}):", resp.status_code, style="green")
+    console.print(resp.text)
+    return resp.status_code
+
+
 def wait_device_info(server_url, api_key, udid, max_retry=5, sleep_time=4):
     headers = {"Content-Type": "application/json"}
     auth = ('micromdm', api_key)
@@ -549,6 +637,111 @@ def wait_device_info(server_url, api_key, udid, max_retry=5, sleep_time=4):
             console.print(f"第{i+1}次查詢... 目前無資料，{resp_info.status_code}", style="yellow")
             time.sleep(sleep_time)
     return None
+
+
+def check_lost_mode_status(server_url, api_key, udid):
+    """檢查設備是否在遺失模式"""
+    console.print(f"🔍 檢查遺失模式狀態 {udid}...", style="bold blue")
+    headers = {"Content-Type": "application/json"}
+    auth = ('micromdm', api_key)
+    payload = {
+        "udid": udid,
+        "request_type": "SecurityInfo"
+    }
+
+    resp = requests.post(f"{server_url}/v1/commands", headers=headers, auth=auth, data=json.dumps(payload))
+    console.print(f"✅ 安全資訊查詢回應 ({udid}):", resp.status_code, style="green")
+    console.print(resp.text)
+    return resp.status_code
+
+
+def get_device_location_with_check(server_url, api_key, udid):
+    """獲取設備位置（先檢查遺失模式狀態）"""
+    console.print(f"📍 準備獲取設備位置 {udid}...", style="bold blue")
+
+    # 先檢查設備狀態
+    console.print("🔍 正在檢查設備是否處於遺失模式...", style="yellow")
+    check_response = check_lost_mode_status(server_url, api_key, udid)
+
+    if check_response == 201:
+        console.print("✅ 狀態檢查命令已發送，請等待回應確認遺失模式狀態", style="green")
+        time.sleep(2)  # 稍等一下讓設備回應
+
+    # 無論如何都嘗試獲取位置
+    console.print(f"📍 嘗試獲取設備位置...", style="bold blue")
+    headers = {"Content-Type": "application/json"}
+    auth = ('micromdm', api_key)
+    payload = {
+        "udid": udid,
+        "request_type": "DeviceLocation"
+    }
+
+    resp = requests.post(f"{server_url}/v1/commands", headers=headers, auth=auth, data=json.dumps(payload))
+    console.print(f"✅ 設備定位回應 ({udid}):", resp.status_code, style="green")
+    console.print(resp.text)
+
+    return resp.status_code
+
+
+# 增強的 SocketIO 事件處理 - 添加到現有的 on_mdm_event 函數中
+def enhanced_on_mdm_event(data):
+    """增強版 MDM 事件處理，專門處理位置和遺失模式回應"""
+
+    if 'acknowledge_event' in data:
+        ack_event = data['acknowledge_event']
+
+        # 檢查是否是位置回應
+        if 'command_type' in ack_event and ack_event['command_type'] == 'DeviceLocation':
+            console.print("[位置回應] 收到設備位置資訊！", style="bold green")
+
+            # 解析位置數據
+            if 'status' in ack_event:
+                if ack_event['status'] == 'Acknowledged':
+                    console.print("✅ 設備已確認位置請求", style="green")
+                elif ack_event['status'] == 'Error':
+                    error_code = ack_event.get('error_code', 'Unknown')
+                    if error_code == 12067:
+                        console.print("❌ 錯誤：設備未處於遺失模式", style="bold red")
+                    elif error_code == 12068:
+                        console.print("❌ 錯誤：設備位置未知", style="bold red")
+                    else:
+                        console.print(f"❌ 錯誤代碼：{error_code}", style="bold red")
+
+        # 檢查是否是遺失模式狀態回應
+        elif 'command_type' in ack_event and ack_event['command_type'] == 'SecurityInfo':
+            console.print("[安全資訊] 收到設備安全狀態！", style="bold blue")
+
+        # 檢查是否是遺失模式啟用/關閉回應
+        elif 'command_type' in ack_event and ack_event['command_type'] in ['EnableLostMode', 'DisableLostMode']:
+            command_type = ack_event['command_type']
+            if ack_event.get('status') == 'Acknowledged':
+                if command_type == 'EnableLostMode':
+                    console.print("✅ 遺失模式已成功啟用！", style="bold green")
+                else:
+                    console.print("✅ 遺失模式已成功關閉！", style="bold green")
+            else:
+                console.print(f"❌ {command_type} 執行失敗", style="bold red")
+
+        # 如果有 raw_payload，嘗試解碼並查找位置信息
+        if 'raw_payload' in ack_event:
+            try:
+                raw = ack_event['raw_payload']
+                decoded = base64.b64decode(raw).decode(errors='ignore')
+
+                # 查找位置相關信息
+                if 'Latitude' in decoded and 'Longitude' in decoded:
+                    console.print("📍 發現位置資訊！", style="bold green")
+                    console.print(decoded)
+                elif 'LostModeEnabled' in decoded:
+                    console.print("🔍 發現遺失模式狀態資訊！", style="bold blue")
+                    console.print(decoded)
+                else:
+                    console.print("[原始回應] 解碼的 raw_payload：", style="bold cyan")
+                    console.print(decoded)
+
+            except Exception as e:
+                console.print(f"[解碼錯誤] {str(e)}", style="bold red")
+
 
 def select_devices():
     # 先嘗試線上取得裝置
@@ -648,6 +841,11 @@ def show_menu():
         ("22", "🔍 檢查命令佇列"),
         ("23", "🔔 發送 Push 通知"),
         ("24", "🔄 同步 DEP 裝置"),
+        ("25", "🔍 啟用遺失模式"),
+        ("26", "🔓 關閉遺失模式"),
+        ("27", "📍 獲取設備位置（遺失模式）"),
+        ("28", "🔊 播放遺失模式聲音"),
+        ("29", "🔍 檢查遺失模式狀態"),
         ("0", "退出")
     ]
 
@@ -673,7 +871,7 @@ def main():
         # 大部分選項需要選擇裝置
         if choice in [
             "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19",
-            "20", "21", "22", "23"
+            "20", "21", "22", "23", "25", "26","27", "28","29"
         ]:
             devices = select_devices_with_filter()
             if not devices:
@@ -1002,7 +1200,82 @@ def main():
         if not Confirm.ask("是否繼續執行其他操作?", default=True):
             console.print("👋 程式結束", style="bold green")
             break
+        # 啟用遺失模式
+        elif choice == "25":
+            message = Prompt.ask("📩 請輸入遺失模式顯示訊息", default="此裝置已遺失，請聯絡管理員")
+            phone_number = Prompt.ask("📞 請輸入聯絡電話（可選）", default="")
+            footnote = Prompt.ask("📝 請輸入備註（可選）", default="")
 
+            for udid, _ in devices:
+                response = enable_lost_mode(
+                    MDM_URL, API_KEY, udid,
+                    message,
+                    phone_number if phone_number else None,
+                    footnote if footnote else None
+                )
+                send_push_to_device(MDM_URL, API_KEY, udid)
+            if response == 201:
+                console.print("✅ 作業完成！", style="bold green")
+            else:
+                console.print("❌ 作業失敗，詳細內容如下：", style="bold red")
+                console.print(response)
 
+        # 關閉遺失模式
+        elif choice == "26":
+            confirm = Confirm.ask("⚠️ 確定要關閉遺失模式嗎？", default=False)
+            if not confirm:
+                console.print("已取消操作", style="bold yellow")
+                continue
+
+            for udid, _ in devices:
+                response = disable_lost_mode(MDM_URL, API_KEY, udid)
+                send_push_to_device(MDM_URL, API_KEY, udid)
+            if response == 201:
+                console.print("✅ 作業完成！", style="bold green")
+            else:
+                console.print("❌ 作業失敗，詳細內容如下：", style="bold red")
+                console.print(response)
+        # 修改選項 27 的處理邏輯
+        elif choice == "27":
+            console.print("⚠️ 注意：此功能僅在設備處於遺失模式時可用", style="bold yellow")
+            console.print("💡 建議：先使用選項 29 檢查遺失模式狀態", style="bold cyan")
+            confirm = Confirm.ask("確定要獲取設備位置嗎？", default=True)
+            if not confirm:
+                console.print("已取消操作", style="bold yellow")
+                continue
+
+            for udid, _ in devices:
+                response = get_device_location_with_check(MDM_URL, API_KEY, udid)
+                send_push_to_device(MDM_URL, API_KEY, udid)
+
+            console.print("📡 命令已發送，請注意觀察 SocketIO 回應...", style="bold cyan")
+            console.print("💡 位置資訊將通過 webhook 回應顯示", style="bold blue")
+
+        # 播放遺失模式聲音
+        elif choice == "28":
+            console.print("⚠️ 注意：此功能僅在設備處於遺失模式時可用", style="bold yellow")
+            confirm = Confirm.ask("確定要播放遺失模式聲音嗎？", default=True)
+            if not confirm:
+                console.print("已取消操作", style="bold yellow")
+                continue
+
+            for udid, _ in devices:
+                response = play_lost_mode_sound(MDM_URL, API_KEY, udid)
+                send_push_to_device(MDM_URL, API_KEY, udid)
+            if response == 201:
+                console.print("✅ 作業完成！設備將播放遺失模式聲音", style="bold green")
+            else:
+                console.print("❌ 作業失敗，詳細內容如下：", style="bold red")
+                console.print(response)
+
+        # 檢查遺失模式狀態
+        elif choice == "29":
+            console.print("🔍 正在檢查設備遺失模式狀態...", style="bold blue")
+            for udid, _ in devices:
+                response = check_lost_mode_status(MDM_URL, API_KEY, udid)
+                send_push_to_device(MDM_URL, API_KEY, udid)
+
+            console.print("📡 狀態查詢命令已發送，請等待設備回應...", style="bold cyan")
+            console.print("💡 遺失模式狀態將通過 SocketIO 回應顯示", style="bold blue")
 if __name__ == "__main__":
     main()

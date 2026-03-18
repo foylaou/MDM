@@ -16,7 +16,7 @@ import socketio
 load_dotenv()
 
 # 設定常數
-VPPTOKEN_PATH = './ISHA_APP_token.vpptoken'
+VPPTOKEN_PATH = 'ISHA_APP_token.vpptoken'
 
 API_KEY = os.getenv('API_KEY')
 MDM_URL = os.getenv('MDM_URL')
@@ -236,6 +236,37 @@ def restart_device(server_url, api_key, udid):
     console.print(resp.text)
     return resp
 
+
+def shutdown_device(server_url, api_key, udid):
+    """
+    遠端關機裝置
+    :param server_url: MicroMDM 伺服器網址（例如 https://mdm.example.com）
+    :param api_key: 認證用的 API 金鑰
+    :param udid: 裝置的 UDID
+    :return: requests 回應物件
+    """
+    console.print(f"⏹️ 正在關機 {udid}...", style="bold red")
+
+    headers = {
+        "Content-Type": "application/json"
+    }
+    auth = ('micromdm', api_key)
+
+    payload = {
+        "udid": udid,
+        "request_type": "ShutDownDevice"
+    }
+
+    resp = requests.post(
+        f"{server_url}/v1/commands",
+        headers=headers,
+        auth=auth,
+        data=json.dumps(payload)
+    )
+
+    console.print(f"🔌 關機回應 ({udid}): {resp.status_code}", style="green")
+    console.print(resp.text)
+    return resp
 
 def clear_passcode(server_url, api_key, udid):
     console.print(f"🔓 清除密碼 {udid}...", style="bold blue")
@@ -809,9 +840,7 @@ def select_devices_with_filter(filter_option=None):
 
     return devices
 
-
 def show_menu():
-
     menu_table = Table(title="🎛️ MicroMDM 管理工具", show_header=False, box=None)
     menu_table.add_column("編號", style="cyan")
     menu_table.add_column("功能", style="green")
@@ -822,30 +851,31 @@ def show_menu():
         ("3", "🔒 鎖定裝置"),
         ("4", "📩 傳送訊息 (透過鎖定顯示)"),
         ("5", "🔄 重開機"),
-        ("6", "🔓 清除密碼"),
-        ("7", "🧹 移除應用程式"),
-        ("8", "💥 擦除裝置"),
-        ("9", "📊 查詢裝置資訊"),
-        ("10", "📋 查詢已安裝 App 清單"),
-        ("11", "📋 查詢已安裝描述檔清單"),
-        ("12", "📦 查詢可用系統更新"),
-        ("13", "📲 排程系統更新"),
-        ("14", "📝 安裝設定描述檔"),
-        ("15", "🗑️ 移除設定描述檔"),
-        ("16", "👤 設定裝置預設帳號"),
-        ("17", "✅ 標記裝置已完成設定"),
-        ("18", "🔑 獲取啟用鎖繞過碼"),
-        ("19", "🔐 獲取安全資訊"),
-        ("20", "🔐 獲取憑證清單"),
-        ("21", "🧹 清除命令佇列"),
-        ("22", "🔍 檢查命令佇列"),
-        ("23", "🔔 發送 Push 通知"),
-        ("24", "🔄 同步 DEP 裝置"),
-        ("25", "🔍 啟用遺失模式"),
-        ("26", "🔓 關閉遺失模式"),
-        ("27", "📍 獲取設備位置（遺失模式）"),
-        ("28", "🔊 播放遺失模式聲音"),
-        ("29", "🔍 檢查遺失模式狀態"),
+        ("6", "⚡ 關機"),
+        ("7", "🔓 清除密碼"),
+        ("8", "🧹 移除應用程式"),
+        ("9", "💥 擦除裝置"),
+        ("10", "📊 查詢裝置資訊"),
+        ("11", "📋 查詢已安裝 App 清單"),
+        ("12", "📋 查詢已安裝描述檔清單"),
+        ("13", "📦 查詢可用系統更新"),
+        ("14", "📲 排程系統更新"),
+        ("15", "📝 安裝設定描述檔"),
+        ("16", "🗑️ 移除設定描述檔"),
+        ("17", "👤 設定裝置預設帳號"),
+        ("18", "✅ 標記裝置已完成設定"),
+        ("19", "🔑 獲取啟用鎖繞過碼"),
+        ("20", "🔐 獲取安全資訊"),
+        ("21", "🔐 獲取憑證清單"),
+        ("22", "🧹 清除命令佇列"),
+        ("23", "🔍 檢查命令佇列"),
+        ("24", "🔔 發送 Push 通知"),
+        ("25", "🔄 同步 DEP 裝置"),
+        ("26", "🔍 啟用遺失模式"),
+        ("27", "🔓 關閉遺失模式"),
+        ("28", "📍 獲取設備位置（遺失模式）"),
+        ("29", "🔊 播放遺失模式聲音"),
+        ("30", "🔍 檢查遺失模式狀態"),
         ("0", "退出")
     ]
 
@@ -863,7 +893,7 @@ def main():
         socketio_thread = start_socketio_client()
 
         choice = show_menu()
-        global response
+        global response, devices
         if choice == "0":
             console.print("👋 程式結束", style="bold green")
             break
@@ -871,7 +901,7 @@ def main():
         # 大部分選項需要選擇裝置
         if choice in [
             "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19",
-            "20", "21", "22", "23", "25", "26","27", "28","29"
+            "20", "21", "22", "23", "26", "27", "28", "29", "30"
         ]:
             devices = select_devices_with_filter()
             if not devices:
@@ -895,8 +925,8 @@ def main():
 
         # 企業內部 App 安裝
         elif choice == "2":
+            identifier = Prompt.ask("請輸入要安裝的 App 識別碼（Bundle ID）")
             for udid, _ in devices:
-                identifier = Prompt.ask("請輸入要安裝的 App 識別碼（Bundle ID）")
                 response = install_enterprise_app(MDM_URL, API_KEY, udid, identifier)
                 send_push_to_device(MDM_URL, API_KEY, udid)
             if response == 201:
@@ -921,7 +951,6 @@ def main():
                 else:
                     console.print("❌ 作業失敗，詳細內容如下：", style="bold red")
                     console.print(response)
-
 
         # 傳送訊息（透過鎖定顯示）
         elif choice == "4":
@@ -948,8 +977,20 @@ def main():
                 console.print(response.status_code)
                 console.print(response.text)
 
-        # 清除密碼
+        # 關機
         elif choice == "6":
+            for udid, _ in devices:
+                response = shutdown_device(MDM_URL, API_KEY, udid)
+                send_push_to_device(MDM_URL, API_KEY, udid)
+            if response.status_code == 201:
+                console.print("✅ 作業完成！", style="bold green")
+            else:
+                console.print("❌ 作業失敗，詳細內容如下：", style="bold red")
+                console.print(response.status_code)
+                console.print(response.text)
+
+        # 清除密碼
+        elif choice == "7":
             for udid, _ in devices:
                 response = clear_passcode(MDM_URL, API_KEY, udid)
                 send_push_to_device(MDM_URL, API_KEY, udid)
@@ -960,7 +1001,7 @@ def main():
                 console.print(response)
 
         # 移除應用程式
-        elif choice == "7":
+        elif choice == "8":
             remove_all = Confirm.ask("是否移除所有應用程式？", default=False)
             if remove_all:
                 identifier = "*"
@@ -976,7 +1017,7 @@ def main():
                 console.print(response)
 
         # 擦除裝置
-        elif choice == "8":
+        elif choice == "9":
             confirm = Confirm.ask("⚠️ 警告：此操作將抹除所有裝置數據！確定要繼續嗎？", default=False)
             if not confirm:
                 console.print("已取消操作", style="bold yellow")
@@ -991,23 +1032,21 @@ def main():
                 console.print("❌ 作業失敗，詳細內容如下：", style="bold red")
                 console.print(response)
 
-
-
         # 查詢裝置資訊
-        elif choice == "9":
+        elif choice == "10":
             for udid, _ in devices:
                 response = get_device_info(MDM_URL, API_KEY, udid)
                 if response == 201:
                     send_push_to_device(MDM_URL, API_KEY, udid)
-
                 else:
                     console.print("❌ 作業失敗，詳細內容如下：", style="bold red")
                     console.print(response)
 
         # 查詢已安裝 App 清單
-        elif choice == "10":
+        elif choice == "11":
             for udid, _ in devices:
                 response = get_installed_apps(MDM_URL, API_KEY, udid)
+                send_push_to_device(MDM_URL, API_KEY, udid)
             if response == 201:
                 console.print("✅ 作業完成！", style="bold green")
             else:
@@ -1015,9 +1054,10 @@ def main():
                 console.print(response)
 
         # 查詢已安裝描述檔清單
-        elif choice == "11":
+        elif choice == "12":
             for udid, _ in devices:
                 response = get_profiles(MDM_URL, API_KEY, udid)
+                send_push_to_device(MDM_URL, API_KEY, udid)
             if response == 201:
                 console.print("✅ 作業完成！", style="bold green")
             else:
@@ -1025,9 +1065,10 @@ def main():
                 console.print(response)
 
         # 查詢可用系統更新
-        elif choice == "12":
+        elif choice == "13":
             for udid, _ in devices:
                 response = get_os_updates(MDM_URL, API_KEY, udid)
+                send_push_to_device(MDM_URL, API_KEY, udid)
             if response == 201:
                 console.print("✅ 作業完成！", style="bold green")
             else:
@@ -1035,7 +1076,7 @@ def main():
                 console.print(response)
 
         # 排程系統更新
-        elif choice == "13":
+        elif choice == "14":
             product_key = Prompt.ask("請輸入產品金鑰 (例如: 012-34567-A)")
             product_version = Prompt.ask("請輸入版本號 (例如: 17.5.1)")
             install_actions = {
@@ -1060,7 +1101,7 @@ def main():
                 console.print(response)
 
         # 安裝設定描述檔
-        elif choice == "14":
+        elif choice == "15":
             profiles = [f for f in os.listdir(PROFILES_DIR) if f.endswith('.mobileconfig')]
             if not profiles:
                 console.print(f"⚠️ 在 {PROFILES_DIR} 目錄下沒有找到 .mobileconfig 檔案", style="bold yellow")
@@ -1088,7 +1129,7 @@ def main():
                 console.print(response)
 
         # 移除設定描述檔
-        elif choice == "15":
+        elif choice == "16":
             identifier = Prompt.ask("請輸入要移除的描述檔識別碼 (PayloadIdentifier)")
             for udid, _ in devices:
                 response = remove_profile(MDM_URL, API_KEY, udid, identifier)
@@ -1100,7 +1141,7 @@ def main():
                 console.print(response)
 
         # 設定裝置預設帳號
-        elif choice == "16":
+        elif choice == "17":
             fullname = Prompt.ask("請輸入顯示名稱 (例如: John Appleseed)")
             username = Prompt.ask("請輸入使用者名稱 (例如: john)")
             lock_info = Confirm.ask("是否鎖定帳號資訊防止變更?", default=True)
@@ -1114,7 +1155,7 @@ def main():
                 console.print(response)
 
         # 標記裝置已完成設定
-        elif choice == "17":
+        elif choice == "18":
             for udid, _ in devices:
                 response = device_configured(MDM_URL, API_KEY, udid)
                 send_push_to_device(MDM_URL, API_KEY, udid)
@@ -1125,9 +1166,10 @@ def main():
                 console.print(response)
 
         # 獲取啟用鎖繞過碼
-        elif choice == "18":
+        elif choice == "19":
             for udid, _ in devices:
                 response = get_activation_lock_bypass(MDM_URL, API_KEY, udid)
+                send_push_to_device(MDM_URL, API_KEY, udid)
             if response == 201:
                 console.print("✅ 作業完成！", style="bold green")
             else:
@@ -1135,9 +1177,10 @@ def main():
                 console.print(response)
 
         # 獲取安全資訊
-        elif choice == "19":
+        elif choice == "20":
             for udid, _ in devices:
                 response = get_security_info(MDM_URL, API_KEY, udid)
+                send_push_to_device(MDM_URL, API_KEY, udid)
             if response == 201:
                 console.print("✅ 作業完成！", style="bold green")
             else:
@@ -1145,9 +1188,10 @@ def main():
                 console.print(response)
 
         # 獲取憑證清單
-        elif choice == "20":
+        elif choice == "21":
             for udid, _ in devices:
                 response = get_certificate_list(MDM_URL, API_KEY, udid)
+                send_push_to_device(MDM_URL, API_KEY, udid)
             if response == 201:
                 console.print("✅ 作業完成！", style="bold green")
             else:
@@ -1155,7 +1199,7 @@ def main():
                 console.print(response)
 
         # 清除命令佇列
-        elif choice == "21":
+        elif choice == "22":
             confirm = Confirm.ask("⚠️ 確定要清除命令佇列嗎？這將移除所有待處理命令！", default=False)
             if not confirm:
                 console.print("已取消操作", style="bold yellow")
@@ -1169,7 +1213,7 @@ def main():
                 console.print(response)
 
         # 檢查命令佇列
-        elif choice == "22":
+        elif choice == "23":
             for udid, _ in devices:
                 response = inspect_command_queue(MDM_URL, API_KEY, udid)
             if response == 200:
@@ -1179,7 +1223,7 @@ def main():
                 console.print(response)
 
         # 發送 Push 通知
-        elif choice == "23":
+        elif choice == "24":
             for udid, _ in devices:
                 response = send_push_to_device(MDM_URL, API_KEY, udid)
             if response == 200:
@@ -1189,7 +1233,7 @@ def main():
                 console.print(response)
 
         # 同步 DEP 裝置
-        elif choice == "24":
+        elif choice == "25":
             response = sync_dep_devices(MDM_URL, API_KEY)
             if response == 200:
                 console.print("✅ 作業完成！", style="bold green")
@@ -1197,11 +1241,8 @@ def main():
                 console.print("❌ 作業失敗，詳細內容如下：", style="bold red")
                 console.print(response)
 
-        if not Confirm.ask("是否繼續執行其他操作?", default=True):
-            console.print("👋 程式結束", style="bold green")
-            break
         # 啟用遺失模式
-        elif choice == "25":
+        elif choice == "26":
             message = Prompt.ask("📩 請輸入遺失模式顯示訊息", default="此裝置已遺失，請聯絡管理員")
             phone_number = Prompt.ask("📞 請輸入聯絡電話（可選）", default="")
             footnote = Prompt.ask("📝 請輸入備註（可選）", default="")
@@ -1221,7 +1262,7 @@ def main():
                 console.print(response)
 
         # 關閉遺失模式
-        elif choice == "26":
+        elif choice == "27":
             confirm = Confirm.ask("⚠️ 確定要關閉遺失模式嗎？", default=False)
             if not confirm:
                 console.print("已取消操作", style="bold yellow")
@@ -1235,10 +1276,11 @@ def main():
             else:
                 console.print("❌ 作業失敗，詳細內容如下：", style="bold red")
                 console.print(response)
-        # 修改選項 27 的處理邏輯
-        elif choice == "27":
+
+        # 獲取設備位置（遺失模式）
+        elif choice == "28":
             console.print("⚠️ 注意：此功能僅在設備處於遺失模式時可用", style="bold yellow")
-            console.print("💡 建議：先使用選項 29 檢查遺失模式狀態", style="bold cyan")
+            console.print("💡 建議：先使用選項 30 檢查遺失模式狀態", style="bold cyan")
             confirm = Confirm.ask("確定要獲取設備位置嗎？", default=True)
             if not confirm:
                 console.print("已取消操作", style="bold yellow")
@@ -1252,7 +1294,7 @@ def main():
             console.print("💡 位置資訊將通過 webhook 回應顯示", style="bold blue")
 
         # 播放遺失模式聲音
-        elif choice == "28":
+        elif choice == "29":
             console.print("⚠️ 注意：此功能僅在設備處於遺失模式時可用", style="bold yellow")
             confirm = Confirm.ask("確定要播放遺失模式聲音嗎？", default=True)
             if not confirm:
@@ -1269,7 +1311,7 @@ def main():
                 console.print(response)
 
         # 檢查遺失模式狀態
-        elif choice == "29":
+        elif choice == "30":
             console.print("🔍 正在檢查設備遺失模式狀態...", style="bold blue")
             for udid, _ in devices:
                 response = check_lost_mode_status(MDM_URL, API_KEY, udid)
@@ -1277,5 +1319,12 @@ def main():
 
             console.print("📡 狀態查詢命令已發送，請等待設備回應...", style="bold cyan")
             console.print("💡 遺失模式狀態將通過 SocketIO 回應顯示", style="bold blue")
+
+        # 詢問是否繼續
+        if not Confirm.ask("是否繼續執行其他操作?", default=True):
+            console.print("👋 程式結束", style="bold green")
+            break
+
+
 if __name__ == "__main__":
     main()

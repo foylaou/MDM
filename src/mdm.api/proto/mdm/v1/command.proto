@@ -1,0 +1,195 @@
+syntax = "proto3";
+
+package mdm.v1;
+
+option go_package = "github.com/anthropics/mdm-server/gen/mdm/v1;mdmv1";
+
+service CommandService {
+  // Device control
+  rpc LockDevice(LockDeviceRequest) returns (CommandResponse);
+  rpc RestartDevice(RestartDeviceRequest) returns (CommandResponse);
+  rpc ShutdownDevice(ShutdownDeviceRequest) returns (CommandResponse);
+  rpc EraseDevice(EraseDeviceRequest) returns (CommandResponse);
+  rpc ClearPasscode(ClearPasscodeRequest) returns (CommandResponse);
+
+  // App management
+  rpc InstallApp(InstallAppRequest) returns (CommandResponse);
+  rpc InstallEnterpriseApp(InstallEnterpriseAppRequest) returns (CommandResponse);
+  rpc RemoveApp(RemoveAppRequest) returns (CommandResponse);
+
+  // Profile management
+  rpc InstallProfile(InstallProfileRequest) returns (CommandResponse);
+  rpc RemoveProfile(RemoveProfileRequest) returns (CommandResponse);
+
+  // Information queries
+  rpc GetDeviceInfo(GetDeviceInfoRequest) returns (CommandResponse);
+  rpc GetInstalledApps(GetInstalledAppsRequest) returns (CommandResponse);
+  rpc GetProfileList(GetProfileListRequest) returns (CommandResponse);
+  rpc GetSecurityInfo(GetSecurityInfoRequest) returns (CommandResponse);
+  rpc GetCertificateList(GetCertificateListRequest) returns (CommandResponse);
+
+  // OS updates
+  rpc GetAvailableOSUpdates(GetAvailableOSUpdatesRequest) returns (CommandResponse);
+  rpc ScheduleOSUpdate(ScheduleOSUpdateRequest) returns (CommandResponse);
+
+  // Device setup
+  rpc SetupAccount(SetupAccountRequest) returns (CommandResponse);
+  rpc DeviceConfigured(DeviceConfiguredRequest) returns (CommandResponse);
+  rpc GetActivationLockBypass(GetActivationLockBypassRequest) returns (CommandResponse);
+
+  // Lost mode
+  rpc EnableLostMode(EnableLostModeRequest) returns (CommandResponse);
+  rpc DisableLostMode(DisableLostModeRequest) returns (CommandResponse);
+  rpc GetDeviceLocation(GetDeviceLocationRequest) returns (CommandResponse);
+  rpc PlayLostModeSound(PlayLostModeSoundRequest) returns (CommandResponse);
+
+  // Push & queue
+  rpc SendPush(SendPushRequest) returns (CommandResponse);
+  rpc ClearCommandQueue(ClearCommandQueueRequest) returns (CommandResponse);
+  rpc InspectCommandQueue(InspectCommandQueueRequest) returns (InspectCommandQueueResponse);
+}
+
+message CommandResponse {
+  string command_uuid = 1;
+  int32 status_code = 2;
+  string raw_response = 3;
+}
+
+// Device control requests
+message LockDeviceRequest {
+  repeated string udids = 1;
+  string pin = 2;
+  string message = 3;
+}
+
+message RestartDeviceRequest {
+  repeated string udids = 1;
+}
+
+message ShutdownDeviceRequest {
+  repeated string udids = 1;
+}
+
+message EraseDeviceRequest {
+  repeated string udids = 1;
+  string pin = 2;
+}
+
+message ClearPasscodeRequest {
+  repeated string udids = 1;
+}
+
+// App management requests
+message InstallAppRequest {
+  repeated string udids = 1;
+  string itunes_store_id = 2;
+  bool assign_vpp_license = 3;
+}
+
+message InstallEnterpriseAppRequest {
+  repeated string udids = 1;
+  string manifest_url = 2;
+}
+
+message RemoveAppRequest {
+  repeated string udids = 1;
+  string identifier = 2;
+}
+
+// Profile requests
+message InstallProfileRequest {
+  repeated string udids = 1;
+  bytes payload = 2;
+}
+
+message RemoveProfileRequest {
+  repeated string udids = 1;
+  string identifier = 2;
+}
+
+// Info requests
+message GetDeviceInfoRequest {
+  repeated string udids = 1;
+}
+
+message GetInstalledAppsRequest {
+  repeated string udids = 1;
+}
+
+message GetProfileListRequest {
+  repeated string udids = 1;
+}
+
+message GetSecurityInfoRequest {
+  repeated string udids = 1;
+}
+
+message GetCertificateListRequest {
+  repeated string udids = 1;
+}
+
+// OS update requests
+message GetAvailableOSUpdatesRequest {
+  repeated string udids = 1;
+}
+
+message ScheduleOSUpdateRequest {
+  repeated string udids = 1;
+  string product_key = 2;
+  string product_version = 3;
+  string install_action = 4;
+}
+
+// Setup requests
+message SetupAccountRequest {
+  repeated string udids = 1;
+  string full_name = 2;
+  string user_name = 3;
+  bool lock_account_info = 4;
+}
+
+message DeviceConfiguredRequest {
+  repeated string udids = 1;
+}
+
+message GetActivationLockBypassRequest {
+  repeated string udids = 1;
+}
+
+// Lost mode requests
+message EnableLostModeRequest {
+  repeated string udids = 1;
+  string message = 2;
+  string phone_number = 3;
+  string footnote = 4;
+}
+
+message DisableLostModeRequest {
+  repeated string udids = 1;
+}
+
+message GetDeviceLocationRequest {
+  repeated string udids = 1;
+}
+
+message PlayLostModeSoundRequest {
+  repeated string udids = 1;
+}
+
+// Push & queue requests
+message SendPushRequest {
+  repeated string udids = 1;
+}
+
+message ClearCommandQueueRequest {
+  repeated string udids = 1;
+}
+
+message InspectCommandQueueRequest {
+  string udid = 1;
+}
+
+message InspectCommandQueueResponse {
+  string udid = 1;
+  string raw_response = 2;
+}

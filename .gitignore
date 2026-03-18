@@ -1,6 +1,25 @@
 /.env
+.env
+!.env.example
 ./profiles
 /profiles/*.mobileconfig
 /profiles/*.pem
 /*.vpptoken
 /*.csv
+.DS_Store
+.idea/
+
+# Go
+server/gen/
+server/data/
+server/mdm-server
+src/mdm.api/.env
+src/mdm.api/mdm-server
+
+# Web
+web/node_modules/
+web/dist/
+web/src/gen/
+src/mdm.web/node_modules/
+src/mdm.web/dist/
+docs/ui.temp/

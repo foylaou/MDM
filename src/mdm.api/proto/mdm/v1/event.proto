@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package mdm.v1;
+
+option go_package = "github.com/anthropics/mdm-server/gen/mdm/v1;mdmv1";
+
+import "google/protobuf/timestamp.proto";
+
+service EventService {
+  rpc StreamEvents(StreamEventsRequest) returns (stream MDMEvent);
+}
+
+message StreamEventsRequest {
+  string filter_udid = 1;
+}
+
+message MDMEvent {
+  string id = 1;
+  string event_type = 2;
+  string udid = 3;
+  string command_uuid = 4;
+  string status = 5;
+  string raw_payload = 6;
+  google.protobuf.Timestamp timestamp = 7;
+}

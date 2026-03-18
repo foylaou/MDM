@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package mdm.v1;
+
+option go_package = "github.com/anthropics/mdm-server/gen/mdm/v1;mdmv1";
+
+service VPPService {
+  rpc AssignLicense(AssignLicenseRequest) returns (AssignLicenseResponse);
+  rpc RevokeLicense(RevokeLicenseRequest) returns (RevokeLicenseResponse);
+}
+
+message AssignLicenseRequest {
+  string adam_id = 1;
+  repeated string serial_numbers = 2;
+}
+
+message AssignLicenseResponse {
+  string status = 1;
+  string raw_response = 2;
+}
+
+message RevokeLicenseRequest {
+  string adam_id = 1;
+  repeated string serial_numbers = 2;
+}
+
+message RevokeLicenseResponse {
+  string status = 1;
+  string raw_response = 2;
+}

@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package mdm.v1;
+
+option go_package = "github.com/anthropics/mdm-server/gen/mdm/v1;mdmv1";
+
+import "google/protobuf/timestamp.proto";
+
+service AuditService {
+  rpc ListAuditLogs(ListAuditLogsRequest) returns (ListAuditLogsResponse);
+}
+
+message ListAuditLogsRequest {
+  string user_id = 1;
+  string action = 2;
+  int32 page_size = 3;
+  string page_token = 4;
+}
+
+message ListAuditLogsResponse {
+  repeated AuditLog logs = 1;
+  string next_page_token = 2;
+}
+
+message AuditLog {
+  string id = 1;
+  string user_id = 2;
+  string username = 3;
+  string action = 4;
+  string target = 5;
+  string detail = 6;
+  google.protobuf.Timestamp timestamp = 7;
+}

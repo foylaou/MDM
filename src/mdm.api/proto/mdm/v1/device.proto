@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package mdm.v1;
+
+option go_package = "github.com/anthropics/mdm-server/gen/mdm/v1;mdmv1";
+
+import "google/protobuf/timestamp.proto";
+
+service DeviceService {
+  rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse);
+  rpc GetDevice(GetDeviceRequest) returns (Device);
+  rpc SyncDevices(SyncDevicesRequest) returns (SyncDevicesResponse);
+  rpc SyncDEPDevices(SyncDEPDevicesRequest) returns (SyncDEPDevicesResponse);
+}
+
+message ListDevicesRequest {
+  string filter = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListDevicesResponse {
+  repeated Device devices = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+message GetDeviceRequest {
+  string udid = 1;
+}
+
+message SyncDevicesRequest {}
+
+message SyncDevicesResponse {
+  int32 synced_count = 1;
+}
+
+message SyncDEPDevicesRequest {}
+
+message SyncDEPDevicesResponse {
+  string status = 1;
+}
+
+message Device {
+  string udid = 1;
+  string serial_number = 2;
+  string device_name = 3;
+  string model = 4;
+  string os_version = 5;
+  google.protobuf.Timestamp last_seen = 6;
+  string enrollment_status = 7;
+}

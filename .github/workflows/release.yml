@@ -35,9 +35,9 @@ jobs:
         with:
           images: ${{ env.IMAGE_API }}
           tags: |
+            type=raw,value=latest
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix=
 
       - name: Build and push API image
         uses: docker/build-push-action@v5
@@ -70,9 +70,9 @@ jobs:
         with:
           images: ${{ env.IMAGE_WEB }}
           tags: |
+            type=raw,value=latest
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix=
 
       - name: Build and push Web image
         uses: docker/build-push-action@v5

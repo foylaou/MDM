@@ -10,7 +10,7 @@ services:
     restart: unless-stopped
 
   api:
-    image: ghcr.io/foylaou/mdm-api:latest
+    image: ghcr.io/foylaou/mdm-api:${IMAGE_TAG:-latest}
     depends_on:
       - postgres
     environment:
@@ -24,7 +24,7 @@ services:
     restart: unless-stopped
 
   web:
-    image: ghcr.io/foylaou/mdm-web:latest
+    image: ghcr.io/foylaou/mdm-web:${IMAGE_TAG:-latest}
     depends_on:
       - api
     ports:

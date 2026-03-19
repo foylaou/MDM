@@ -23,14 +23,36 @@ type CommandService struct {
 	vpp    port.VPPClient
 	audit  port.AuditRepository
 	broker port.EventBroker
+	assets port.AssetRepository
 }
 
-func NewCommandService(mdm port.MicroMDMClient, vpp port.VPPClient, audit port.AuditRepository, broker port.EventBroker) *CommandService {
-	return &CommandService{mdm: mdm, vpp: vpp, audit: audit, broker: broker}
+func NewCommandService(mdm port.MicroMDMClient, vpp port.VPPClient, audit port.AuditRepository, broker port.EventBroker, assets port.AssetRepository) *CommandService {
+	return &CommandService{mdm: mdm, vpp: vpp, audit: audit, broker: broker, assets: assets}
+}
+
+func (s *CommandService) requireRoleOrCustodian(ctx context.Context, udids []string) error {
+	// Admin and operator always pass
+	if err := middleware.RequireRole(ctx, "admin", "operator"); err == nil {
+		return nil
+	}
+	// Otherwise check if the user is the custodian of all target devices
+	userID, _ := ctx.Value(middleware.CtxUserID).(string)
+	if userID == "" {
+		return connect.NewError(connect.CodePermissionDenied, fmt.Errorf("insufficient permissions"))
+	}
+	ok, err := s.assets.IsCustodianOfAll(ctx, userID, udids)
+	if err != nil {
+		log.Printf("custodian check error: %v", err)
+		return connect.NewError(connect.CodeInternal, fmt.Errorf("permission check failed"))
+	}
+	if !ok {
+		return connect.NewError(connect.CodePermissionDenied, fmt.Errorf("insufficient permissions: not admin/operator or custodian of target devices"))
+	}
+	return nil
 }
 
 func (s *CommandService) sendToAll(ctx context.Context, udids []string, payload func(udid string) map[string]interface{}) (*connect.Response[mdmv1.CommandResponse], error) {
-	if err := middleware.RequireRole(ctx, "admin", "operator"); err != nil {
+	if err := s.requireRoleOrCustodian(ctx, udids); err != nil {
 		return nil, err
 	}
 	if len(udids) == 0 {

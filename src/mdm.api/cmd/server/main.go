@@ -59,6 +59,7 @@ func main() {
 	userRepo := postgres.NewUserRepo(pool)
 	deviceRepo := postgres.NewDeviceRepo(pool)
 	auditRepo := postgres.NewAuditRepo(pool)
+	assetRepo := postgres.NewAssetRepo(pool)
 
 	// Event broker
 	broker := service.NewEventBroker()
@@ -66,7 +67,7 @@ func main() {
 	// Services
 	authSvc := service.NewAuthService(userRepo, cfg.JWTSecret)
 	deviceSvc := service.NewDeviceService(mdmClient, deviceRepo, auditRepo)
-	commandSvc := service.NewCommandService(mdmClient, vppClient, auditRepo, broker)
+	commandSvc := service.NewCommandService(mdmClient, vppClient, auditRepo, broker, assetRepo)
 	eventSvc := service.NewEventService(broker)
 	vppSvc := service.NewVPPService(vppClient)
 	userSvc := service.NewUserService(userRepo)

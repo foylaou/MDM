@@ -46,6 +46,11 @@ type VPPClient interface {
 	RevokeLicense(ctx context.Context, adamID string, serialNumbers []string) (string, error)
 }
 
+// AssetRepository checks asset ownership (custodian).
+type AssetRepository interface {
+	IsCustodianOfAll(ctx context.Context, userID string, udids []string) (bool, error)
+}
+
 // EventBroker fans out MDM events to subscribers.
 type EventBroker interface {
 	Publish(event *domain.MDMEvent)

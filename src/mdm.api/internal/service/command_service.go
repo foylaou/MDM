@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 
 	"connectrpc.com/connect"
@@ -166,12 +167,17 @@ func (s *CommandService) InstallApp(ctx context.Context, req *connect.Request[md
 		// For now, pass UDIDs and let VPP adapter handle
 	}
 
+	storeID, err := strconv.ParseInt(req.Msg.ItunesStoreId, 10, 64)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid itunes_store_id: %w", err))
+	}
+
 	return s.sendToAll(ctx, req.Msg.Udids, func(udid string) map[string]interface{} {
 		return map[string]interface{}{
-			"udid":             udid,
-			"request_type":     "InstallApplication",
-			"itunes_store_id":  req.Msg.ItunesStoreId,
-			"options":          map[string]interface{}{"purchase_method": 1},
+			"udid":            udid,
+			"request_type":    "InstallApplication",
+			"itunes_store_id": storeID,
+			"options":         map[string]interface{}{"purchase_method": 1},
 		}
 	})
 }
@@ -289,11 +295,11 @@ func (s *CommandService) ScheduleOSUpdate(ctx context.Context, req *connect.Requ
 			"udid":         udid,
 			"request_type": "ScheduleOSUpdate",
 			"updates": []map[string]interface{}{{
-				"install_action":    req.Msg.InstallAction,
-				"product_key":       req.Msg.ProductKey,
-				"product_version":   req.Msg.ProductVersion,
+				"install_action":     req.Msg.InstallAction,
+				"product_key":        req.Msg.ProductKey,
+				"product_version":    req.Msg.ProductVersion,
 				"max_user_deferrals": 1,
-				"priority":          "High",
+				"priority":           "High",
 			}},
 		}
 	})
@@ -303,14 +309,14 @@ func (s *CommandService) SetupAccount(ctx context.Context, req *connect.Request[
 	s.auditAction(ctx, "setup_account", fmt.Sprint(req.Msg.Udids), req.Msg.UserName)
 	return s.sendToAll(ctx, req.Msg.Udids, func(udid string) map[string]interface{} {
 		return map[string]interface{}{
-			"udid":                                    udid,
-			"request_type":                            "AccountConfiguration",
-			"skip_primary_setup_account_creation":     false,
+			"udid":                                udid,
+			"request_type":                        "AccountConfiguration",
+			"skip_primary_setup_account_creation": false,
 			"set_primary_setup_account_as_regular_user": false,
-			"dont_auto_populate_primary_account_info":  false,
-			"lock_primary_account_info":                req.Msg.LockAccountInfo,
-			"primary_account_full_name":                req.Msg.FullName,
-			"primary_account_user_name":                req.Msg.UserName,
+			"dont_auto_populate_primary_account_info":   false,
+			"lock_primary_account_info":                 req.Msg.LockAccountInfo,
+			"primary_account_full_name":                 req.Msg.FullName,
+			"primary_account_user_name":                 req.Msg.UserName,
 		}
 	})
 }

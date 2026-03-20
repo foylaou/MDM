@@ -73,7 +73,9 @@
     "quickActions": "快速操作",
     "viewDevices": "檢視裝置",
     "sendCommand": "傳送指令",
-    "monitorEvents": "監控事件"
+    "monitorEvents": "監控事件",
+    "rentedOut": "借出中",
+    "rentedOutDesc": "目前被借出的裝置"
   },
   "devices": {
     "title": "裝置管理",
@@ -118,6 +120,8 @@
       "Erase Device": "清除裝置",
       "Install App (VPP)": "安裝 App (VPP)",
       "Install Enterprise App": "安裝企業 App",
+      "Update App (VPP)": "更新 App (VPP)",
+      "Update Enterprise App": "更新企業 App",
       "Remove App": "移除 App",
       "Install Profile": "安裝描述檔",
       "Remove Profile": "移除描述檔",
@@ -199,7 +203,19 @@
     "action": "動作",
     "target": "目標",
     "detail": "詳情",
-    "noLogs": "尚無稽核紀錄"
+    "noLogs": "尚無稽核紀錄",
+    "liveTracking": "即時指令追蹤",
+    "deviceCount": "台裝置",
+    "executor": "執行者",
+    "sentTime": "發送時間",
+    "responseTime": "回應時間",
+    "targetDevices": "目標裝置",
+    "responsePayload": "回應內容",
+    "cmdStatus": {
+      "sent": "執行中",
+      "acknowledged": "已完成",
+      "error": "失敗"
+    }
   },
   "devicePicker": {
     "placeholder": "搜尋裝置名稱、序號...",

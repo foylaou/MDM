@@ -3,7 +3,8 @@ import { useAuthStore } from "../stores/authStore";
 import { useEventStore } from "../stores/eventStore";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
-import { Tablet, Wifi, WifiOff, Terminal, Radio, RefreshCw, Check, AlertCircle, Clock } from "lucide-react";
+import { Tablet, Wifi, WifiOff, Terminal, Radio, RefreshCw, Check, AlertCircle, Clock, UserCheck } from "lucide-react";
+import apiClient from "../lib/apiClient";
 import type { Device } from "../gen/mdm/v1/device_pb";
 
 export function Dashboard() {
@@ -11,14 +12,21 @@ export function Dashboard() {
   const { clients } = useAuthStore();
   const { events } = useEventStore();
   const [devices, setDevices] = useState<Device[]>([]);
+  const [rentedCount, setRentedCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const loadDevices = async () => {
     if (!clients) return;
     setLoading(true);
     try {
-      const resp = await clients.device.listDevices({ pageSize: 200 });
+      const [resp, rentalsResp] = await Promise.all([
+        clients.device.listDevices({ pageSize: 200 }),
+        apiClient.get("/api/rentals", { params: { status: "active" } }),
+      ]);
       setDevices(resp.devices);
+      const activeRentals: unknown[] = rentalsResp.data?.rentals ?? [];
+      const uniqueDevices = new Set(activeRentals.map((r: any) => r.device_udid));
+      setRentedCount(uniqueDevices.size);
     } catch (err) { console.error("Failed to load devices:", err); }
     finally { setLoading(false); }
   };
@@ -59,7 +67,7 @@ export function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="stat bg-base-100 rounded-box shadow">
           <div className="stat-figure text-primary"><Tablet size={28} /></div>
           <div className="stat-title">{t("dashboard.totalDevices")}</div>
@@ -83,6 +91,12 @@ export function Dashboard() {
           <div className="stat-title">{t("dashboard.offline")}</div>
           <div className="stat-value text-warning">{loading ? <Dots /> : enrolled.length - online.length}</div>
           <div className="stat-desc">{t("dashboard.offlineDesc")}</div>
+        </div>
+        <div className="stat bg-base-100 rounded-box shadow">
+          <div className="stat-figure text-accent"><UserCheck size={28} /></div>
+          <div className="stat-title">{t("dashboard.rentedOut")}</div>
+          <div className="stat-value text-accent">{loading ? <Dots /> : rentedCount}</div>
+          <div className="stat-desc">{t("dashboard.rentedOutDesc")}</div>
         </div>
       </div>
 

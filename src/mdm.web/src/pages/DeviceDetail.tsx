@@ -8,10 +8,32 @@ import {
   ArrowLeft, RefreshCw, Smartphone, Lock, RotateCcw, Power,
   MapPin, Volume2, Bell, Info, AppWindow, FileText, Shield, Award,
   Package, MapPinOff, Battery, Wifi, HardDrive, KeyRound, Trash2,
-  Download, Building2, PackageMinus, Upload, ClipboardList,
+  Download, PackageMinus, Upload, ClipboardList, RefreshCcw,
 } from "lucide-react";
 import { ProfilePicker } from "../components/ProfilePicker";
 import { AssetForm } from "../components/AssetForm";
+import apiClient from "../lib/apiClient";
+
+interface ManagedApp {
+  id: string;
+  name: string;
+  bundle_id: string;
+  app_type: "vpp" | "enterprise";
+  itunes_store_id: string;
+  manifest_url: string;
+  purchased_qty: number;
+  installed_count: number;
+  icon_url: string;
+}
+
+interface DeviceApp {
+  id: string;
+  app_id: string;
+  app_name: string;
+  bundle_id: string;
+  app_type: string;
+  installed_at: string;
+}
 
 interface DeviceData {
   udid: string;
@@ -66,9 +88,9 @@ const actionCommands: ActionCmd[] = [
   { label: "關閉遺失模式", method: "disableLostMode",    icon: <MapPinOff size={14} /> },
   { label: "定位",         method: "getDeviceLocation",  icon: <MapPin size={14} />,   requiresLostMode: true },
   { label: "播放聲音",     method: "playLostModeSound",  icon: <Volume2 size={14} />,  requiresLostMode: true },
-  { label: "安裝 App",     method: "installApp",         icon: <Download size={14} />, roles: ["admin", "operator"] },
-  { label: "安裝企業 App", method: "installEnterpriseApp", icon: <Building2 size={14} />, roles: ["admin", "operator"] },
-  { label: "移除 App",     method: "removeApp",          icon: <PackageMinus size={14} />, roles: ["admin", "operator"] },
+  { label: "安裝 App",     method: "showInstallApp",     icon: <Download size={14} />, roles: ["admin", "operator"] },
+  { label: "更新 App",     method: "showUpdateApp",      icon: <RefreshCcw size={14} />, roles: ["admin", "operator"] },
+  { label: "移除 App",     method: "showUninstallApp",   icon: <PackageMinus size={14} />, roles: ["admin", "operator"] },
   { label: "清除裝置",     method: "eraseDevice",        icon: <Trash2 size={14} />,   danger: true, roles: ["admin"] },
 ];
 
@@ -87,6 +109,17 @@ export function DeviceDetail() {
   const [showInstallProfile, setShowInstallProfile] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState("");
   const [selectedProfilePayload, setSelectedProfilePayload] = useState("");
+  const [showLostMode, setShowLostMode] = useState(false);
+  const [lostModeMessage, setLostModeMessage] = useState("");
+  const [lostModePhone, setLostModePhone] = useState("");
+  const [lostModeFootnote, setLostModeFootnote] = useState("");
+  const [showAppInstall, setShowAppInstall] = useState(false);
+  const [showAppUninstall, setShowAppUninstall] = useState(false);
+  const [managedApps, setManagedApps] = useState<ManagedApp[]>([]);
+  const [deviceApps, setDeviceApps] = useState<DeviceApp[]>([]);
+  const [selectedAppId, setSelectedAppId] = useState("");
+  const [appLoading, setAppLoading] = useState(false);
+  const [showAppUpdate, setShowAppUpdate] = useState(false);
 
   const baseUrl = import.meta.env.DEV ? "" : window.location.origin;
 
@@ -145,6 +178,22 @@ export function DeviceDetail() {
   // Execute an action command
   const executeAction = async (cmd: ActionCmd) => {
     if (!clients || !udid) return;
+    if (cmd.method === "enableLostMode") {
+      setShowLostMode(true);
+      return;
+    }
+    if (cmd.method === "showInstallApp") {
+      openAppInstall();
+      return;
+    }
+    if (cmd.method === "showUpdateApp") {
+      openAppUpdate();
+      return;
+    }
+    if (cmd.method === "showUninstallApp") {
+      openAppUninstall();
+      return;
+    }
     if (cmd.danger && !confirm(`確定要執行「${cmd.label}」嗎？此操作無法復原。`)) return;
     setExecuting(cmd.method);
     setActionResult(null);
@@ -156,6 +205,30 @@ export function DeviceDetail() {
     } catch (err) {
       setActionResult(`Error: ${err instanceof Error ? err.message : "Unknown"}`);
     } finally { setExecuting(null); }
+  };
+
+  const executeLostMode = async () => {
+    if (!clients || !udid || !lostModeMessage) return;
+    setShowLostMode(false);
+    setExecuting("enableLostMode");
+    setActionResult(null);
+    try {
+      const resp = await clients.command.enableLostMode({
+        udids: [udid],
+        message: lostModeMessage,
+        phoneNumber: lostModePhone,
+        footnote: lostModeFootnote,
+      });
+      trackCommand("啟用遺失模式", [udid], resp.commandUuid);
+      if (resp.rawResponse) setActionResult(resp.rawResponse);
+    } catch (err) {
+      setActionResult(`Error: ${err instanceof Error ? err.message : "Unknown"}`);
+    } finally {
+      setExecuting(null);
+      setLostModeMessage("");
+      setLostModePhone("");
+      setLostModeFootnote("");
+    }
   };
 
   // Remove a profile by identifier
@@ -183,6 +256,106 @@ export function DeviceDetail() {
     } catch (err) {
       setActionResult(`Error: ${err instanceof Error ? err.message : "Unknown"}`);
     } finally { setExecuting(null); }
+  };
+
+  // Load managed apps list & device-installed apps
+  const loadManagedApps = useCallback(async () => {
+    try {
+      const { data } = await apiClient.get("/api/managed-apps");
+      setManagedApps(data.apps || []);
+    } catch (err) { console.error("Load managed apps:", err); }
+  }, []);
+
+  const loadDeviceApps = useCallback(async () => {
+    if (!udid) return;
+    try {
+      const { data } = await apiClient.get(`/api/device-apps?device_udid=${udid}`);
+      setDeviceApps(data.device_apps || []);
+    } catch (err) { console.error("Load device apps:", err); }
+  }, [udid]);
+
+  const openAppInstall = async () => {
+    await Promise.all([loadManagedApps(), loadDeviceApps()]);
+    setSelectedAppId("");
+    setShowAppInstall(true);
+  };
+
+  const openAppUpdate = async () => {
+    await Promise.all([loadManagedApps(), loadDeviceApps()]);
+    setSelectedAppId("");
+    setShowAppUpdate(true);
+  };
+
+  const openAppUninstall = async () => {
+    await loadDeviceApps();
+    setSelectedAppId("");
+    setShowAppUninstall(true);
+  };
+
+  const handleInstallApp = async () => {
+    if (!selectedAppId || !udid) return;
+    setAppLoading(true);
+    setActionResult(null);
+    try {
+      const { data } = await apiClient.post("/api/device-apps/install", {
+        app_id: selectedAppId,
+        udid,
+      });
+      if (data.command_uuid) {
+        const app = managedApps.find((a) => a.id === selectedAppId);
+        trackCommand(`安裝 ${app?.name || "App"}`, [udid], data.command_uuid);
+      }
+      if (data.raw_response) setActionResult(data.raw_response);
+      setShowAppInstall(false);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+        || (err instanceof Error ? err.message : "Unknown error");
+      setActionResult(`Error: ${msg}`);
+    } finally { setAppLoading(false); }
+  };
+
+  const handleUninstallApp = async () => {
+    if (!selectedAppId || !udid) return;
+    setAppLoading(true);
+    setActionResult(null);
+    try {
+      const { data } = await apiClient.post("/api/device-apps/uninstall", {
+        app_id: selectedAppId,
+        udid,
+      });
+      if (data.command_uuid) {
+        const app = deviceApps.find((a) => a.app_id === selectedAppId);
+        trackCommand(`移除 ${app?.app_name || "App"}`, [udid], data.command_uuid);
+      }
+      if (data.raw_response) setActionResult(data.raw_response);
+      setShowAppUninstall(false);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+        || (err instanceof Error ? err.message : "Unknown error");
+      setActionResult(`Error: ${msg}`);
+    } finally { setAppLoading(false); }
+  };
+
+  const handleUpdateApp = async () => {
+    if (!selectedAppId || !udid) return;
+    setAppLoading(true);
+    setActionResult(null);
+    try {
+      const { data } = await apiClient.post("/api/device-apps/update", {
+        app_id: selectedAppId,
+        udid,
+      });
+      if (data.command_uuid) {
+        const app = deviceApps.find((a) => a.app_id === selectedAppId);
+        trackCommand(`更新 ${app?.app_name || "App"}`, [udid], data.command_uuid);
+      }
+      if (data.raw_response) setActionResult(data.raw_response);
+      setShowAppUpdate(false);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+        || (err instanceof Error ? err.message : "Unknown error");
+      setActionResult(`Error: ${msg}`);
+    } finally { setAppLoading(false); }
   };
 
   // Get cached payload for the active tab
@@ -401,6 +574,205 @@ export function DeviceDetail() {
         </div>
         <form method="dialog" className="modal-backdrop">
           <button onClick={() => setShowInstallProfile(false)}>close</button>
+        </form>
+      </dialog>
+      {/* Lost Mode Modal */}
+      <dialog className={`modal ${showLostMode ? "modal-open" : ""}`}>
+        <div className="modal-box">
+          <h3 className="font-bold text-lg flex items-center gap-2"><MapPin size={18} /> 啟用遺失模式</h3>
+          <div className="space-y-3 py-4">
+            <div className="form-control">
+              <label className="label"><span className="label-text font-medium">顯示訊息 <span className="text-error">*</span></span></label>
+              <input type="text" value={lostModeMessage} onChange={(e) => setLostModeMessage(e.target.value)} className="input input-bordered input-sm" placeholder="此裝置已遺失，請聯繫..." />
+            </div>
+            <div className="form-control">
+              <label className="label"><span className="label-text font-medium">聯絡電話</span></label>
+              <input type="text" value={lostModePhone} onChange={(e) => setLostModePhone(e.target.value)} className="input input-bordered input-sm" placeholder="選填" />
+            </div>
+            <div className="form-control">
+              <label className="label"><span className="label-text font-medium">附註</span></label>
+              <input type="text" value={lostModeFootnote} onChange={(e) => setLostModeFootnote(e.target.value)} className="input input-bordered input-sm" placeholder="選填" />
+            </div>
+          </div>
+          <div className="modal-action">
+            <button className="btn" onClick={() => setShowLostMode(false)}>取消</button>
+            <button className="btn btn-warning" disabled={!lostModeMessage} onClick={executeLostMode}>啟用</button>
+          </div>
+        </div>
+        <form method="dialog" className="modal-backdrop">
+          <button onClick={() => setShowLostMode(false)}>close</button>
+        </form>
+      </dialog>
+      {/* Install App Modal */}
+      <dialog className={`modal ${showAppInstall ? "modal-open" : ""}`}>
+        <div className="modal-box">
+          <h3 className="font-bold text-lg flex items-center gap-2"><Download size={18} /> 安裝 App</h3>
+          <div className="py-4">
+            {managedApps.length === 0 ? (
+              <div className="text-center py-4 text-base-content/50">
+                尚未登記任何 App，請先到 App 管理頁面新增
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <label className="label"><span className="label-text font-medium">選擇 App</span></label>
+                <div className="border border-base-300 rounded-lg max-h-64 overflow-y-auto divide-y divide-base-200">
+                  {managedApps
+                    .filter((a) => !deviceApps.some((da) => da.app_id === a.id))
+                    .map((a) => {
+                      const avail = a.purchased_qty > 0 ? a.purchased_qty - a.installed_count : null;
+                      const disabled = avail !== null && avail <= 0;
+                      const selected = selectedAppId === a.id;
+                      return (
+                        <div
+                          key={a.id}
+                          onClick={() => !disabled && setSelectedAppId(selected ? "" : a.id)}
+                          className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors
+                            ${disabled ? "opacity-40 cursor-not-allowed" : "hover:bg-base-200"}
+                            ${selected ? "bg-primary/10 border-l-2 border-primary" : ""}`}
+                        >
+                          {a.icon_url ? (
+                            <img src={a.icon_url} alt="" className="w-9 h-9 rounded-lg flex-shrink-0" />
+                          ) : (
+                            <div className="w-9 h-9 rounded-lg bg-base-300 flex items-center justify-center flex-shrink-0">
+                              <Package size={16} className="opacity-40" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium">{a.name}</div>
+                            <div className="text-xs opacity-50 font-mono truncate">{a.bundle_id}</div>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <span className={`badge badge-xs ${a.app_type === "vpp" ? "badge-primary" : "badge-secondary"}`}>
+                              {a.app_type === "vpp" ? "VPP" : "企業"}
+                            </span>
+                            {avail !== null && (
+                              <div className={`text-xs mt-0.5 ${avail <= 0 ? "text-error" : "text-success"}`}>
+                                {avail <= 0 ? "已滿" : `可用 ${avail}`}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  {managedApps.filter((a) => !deviceApps.some((da) => da.app_id === a.id)).length === 0 && (
+                    <div className="text-center py-4 text-base-content/50 text-sm">所有 App 皆已安裝</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="modal-action">
+            <button className="btn" onClick={() => setShowAppInstall(false)}>取消</button>
+            <button
+              className="btn btn-primary gap-1"
+              disabled={!selectedAppId || appLoading}
+              onClick={handleInstallApp}
+            >
+              {appLoading ? <span className="loading loading-spinner loading-xs"></span> : <Download size={14} />}
+              安裝
+            </button>
+          </div>
+        </div>
+        <form method="dialog" className="modal-backdrop">
+          <button onClick={() => setShowAppInstall(false)}>close</button>
+        </form>
+      </dialog>
+      {/* Update App Modal */}
+      <dialog className={`modal ${showAppUpdate ? "modal-open" : ""}`}>
+        <div className="modal-box">
+          <h3 className="font-bold text-lg flex items-center gap-2"><RefreshCcw size={18} /> 更新 App</h3>
+          <p className="text-sm text-base-content/60 mt-1">重新下發安裝指令，裝置會自動更新到最新版本</p>
+          <div className="py-4">
+            {deviceApps.length === 0 ? (
+              <div className="text-center py-4 text-base-content/50">
+                此裝置尚未安裝任何受管理的 App
+              </div>
+            ) : (
+              <div className="border border-base-300 rounded-lg max-h-64 overflow-y-auto divide-y divide-base-200">
+                {deviceApps.map((da) => {
+                  const app = managedApps.find((a) => a.id === da.app_id);
+                  const selected = selectedAppId === da.app_id;
+                  return (
+                    <div
+                      key={da.app_id}
+                      onClick={() => setSelectedAppId(selected ? "" : da.app_id)}
+                      className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors hover:bg-base-200
+                        ${selected ? "bg-primary/10 border-l-2 border-primary" : ""}`}
+                    >
+                      {app?.icon_url ? (
+                        <img src={app.icon_url} alt="" className="w-9 h-9 rounded-lg flex-shrink-0" />
+                      ) : (
+                        <div className="w-9 h-9 rounded-lg bg-base-300 flex items-center justify-center flex-shrink-0">
+                          <Package size={16} className="opacity-40" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium">{da.app_name}</div>
+                        <div className="text-xs opacity-50 font-mono truncate">{da.bundle_id}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <div className="modal-action">
+            <button className="btn" onClick={() => setShowAppUpdate(false)}>取消</button>
+            <button
+              className="btn btn-primary gap-1"
+              disabled={!selectedAppId || appLoading}
+              onClick={handleUpdateApp}
+            >
+              {appLoading ? <span className="loading loading-spinner loading-xs"></span> : <RefreshCcw size={14} />}
+              更新
+            </button>
+          </div>
+        </div>
+        <form method="dialog" className="modal-backdrop">
+          <button onClick={() => setShowAppUpdate(false)}>close</button>
+        </form>
+      </dialog>
+      {/* Uninstall App Modal */}
+      <dialog className={`modal ${showAppUninstall ? "modal-open" : ""}`}>
+        <div className="modal-box">
+          <h3 className="font-bold text-lg flex items-center gap-2"><PackageMinus size={18} /> 移除 App</h3>
+          <div className="py-4">
+            {deviceApps.length === 0 ? (
+              <div className="text-center py-4 text-base-content/50">
+                此裝置尚未安裝任何受管理的 App
+              </div>
+            ) : (
+              <div className="form-control">
+                <label className="label"><span className="label-text font-medium">選擇要移除的 App</span></label>
+                <select
+                  value={selectedAppId}
+                  onChange={(e) => setSelectedAppId(e.target.value)}
+                  className="select select-bordered select-sm w-full"
+                >
+                  <option value="">— 請選擇 —</option>
+                  {deviceApps.map((da) => (
+                    <option key={da.app_id} value={da.app_id}>
+                      {da.app_name} ({da.bundle_id})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+          <div className="modal-action">
+            <button className="btn" onClick={() => setShowAppUninstall(false)}>取消</button>
+            <button
+              className="btn btn-error gap-1"
+              disabled={!selectedAppId || appLoading}
+              onClick={handleUninstallApp}
+            >
+              {appLoading ? <span className="loading loading-spinner loading-xs"></span> : <PackageMinus size={14} />}
+              移除
+            </button>
+          </div>
+        </div>
+        <form method="dialog" className="modal-backdrop">
+          <button onClick={() => setShowAppUninstall(false)}>close</button>
         </form>
       </dialog>
     </div>

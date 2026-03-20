@@ -19,3 +19,18 @@ var Migration005SQL string
 
 //go:embed migrations/006_user_active.up.sql
 var Migration006SQL string
+
+//go:embed migrations/007_managed_apps.up.sql
+var Migration007SQL string
+
+//go:embed migrations/008_rental_archive.up.sql
+var Migration008SQL string
+
+//go:embed migrations/009_rental_batch_fix.up.sql
+var Migration009SQL string
+
+//go:embed migrations/010_rental_checklist.up.sql
+var Migration010SQL string
+
+//go:embed migrations/011_app_icon.up.sql
+var Migration011SQL string

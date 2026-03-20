@@ -8,11 +8,11 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"time"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"connectrpc.com/connect"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -26,6 +26,7 @@ import (
 	"github.com/anthropics/mdm-server/internal/adapter/vpp"
 	"github.com/anthropics/mdm-server/internal/config"
 	"github.com/anthropics/mdm-server/internal/db"
+	"github.com/anthropics/mdm-server/internal/domain"
 	"github.com/anthropics/mdm-server/internal/middleware"
 	"github.com/anthropics/mdm-server/internal/service"
 )
@@ -443,7 +444,9 @@ func main() {
 			d.LastSeen = lastSeen.Format(time.RFC3339)
 			devices = append(devices, d)
 		}
-		if devices == nil { devices = []deviceRow{} }
+		if devices == nil {
+			devices = []deviceRow{}
+		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{"devices": devices, "total": len(devices)})
 	})
@@ -559,35 +562,47 @@ func main() {
 					&a.CategoryID, &a.CategoryName); err != nil {
 					continue
 				}
-				if deviceUdidPtr != nil { a.DeviceUdid = deviceUdidPtr }
-				if acquiredDate != nil { s := acquiredDate.Format("2006-01-02"); a.AcquiredDate = &s }
-				if borrowDate != nil { s := borrowDate.Format("2006-01-02"); a.BorrowDate = &s }
-				if custodianID != nil { a.CustodianID = custodianID }
+				if deviceUdidPtr != nil {
+					a.DeviceUdid = deviceUdidPtr
+				}
+				if acquiredDate != nil {
+					s := acquiredDate.Format("2006-01-02")
+					a.AcquiredDate = &s
+				}
+				if borrowDate != nil {
+					s := borrowDate.Format("2006-01-02")
+					a.BorrowDate = &s
+				}
+				if custodianID != nil {
+					a.CustodianID = custodianID
+				}
 				a.CreatedAt = createdAt.Format(time.RFC3339)
 				a.UpdatedAt = updatedAt.Format(time.RFC3339)
 				assets = append(assets, a)
 			}
-			if assets == nil { assets = []assetRow{} }
+			if assets == nil {
+				assets = []assetRow{}
+			}
 			json.NewEncoder(w).Encode(map[string]interface{}{"assets": assets})
 
 		case http.MethodPost:
 			var body struct {
-				DeviceUdid    *string  `json:"device_udid"`
-				AssetNumber   string   `json:"asset_number"`
-				Name          string   `json:"name"`
-				Spec          string   `json:"spec"`
-				Quantity      int      `json:"quantity"`
-				Unit          string   `json:"unit"`
-				AcquiredDate  *string  `json:"acquired_date"`
-				UnitPrice     float64  `json:"unit_price"`
-				Purpose       string   `json:"purpose"`
-				BorrowDate    *string  `json:"borrow_date"`
-				CustodianID   *string  `json:"custodian_id"`
-				CustodianName string   `json:"custodian_name"`
-				Location      string   `json:"location"`
-				AssetCategory string   `json:"asset_category"`
-				Notes         string   `json:"notes"`
-				CategoryID    *string  `json:"category_id"`
+				DeviceUdid    *string `json:"device_udid"`
+				AssetNumber   string  `json:"asset_number"`
+				Name          string  `json:"name"`
+				Spec          string  `json:"spec"`
+				Quantity      int     `json:"quantity"`
+				Unit          string  `json:"unit"`
+				AcquiredDate  *string `json:"acquired_date"`
+				UnitPrice     float64 `json:"unit_price"`
+				Purpose       string  `json:"purpose"`
+				BorrowDate    *string `json:"borrow_date"`
+				CustodianID   *string `json:"custodian_id"`
+				CustodianName string  `json:"custodian_name"`
+				Location      string  `json:"location"`
+				AssetCategory string  `json:"asset_category"`
+				Notes         string  `json:"notes"`
+				CategoryID    *string `json:"category_id"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
@@ -669,6 +684,423 @@ func main() {
 		default:
 			w.WriteHeader(http.StatusMethodNotAllowed)
 		}
+	})
+
+	// iTunes Lookup API proxy — avoids CORS, returns app info including icon
+	mux.HandleFunc("/api/itunes-lookup", func(w http.ResponseWriter, r *http.Request) {
+		if _, err := middleware.ExtractTokenFromRequest(r, cfg.JWTSecret); err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		bundleID := r.URL.Query().Get("bundleId")
+		itunesID := r.URL.Query().Get("id")
+		if bundleID == "" && itunesID == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"bundleId or id required"}`))
+			return
+		}
+		var lookupURL string
+		if bundleID != "" {
+			lookupURL = "https://itunes.apple.com/lookup?bundleId=" + bundleID + "&country=tw"
+		} else {
+			lookupURL = "https://itunes.apple.com/lookup?id=" + itunesID + "&country=tw"
+		}
+		resp, err := http.Get(lookupURL)
+		if err != nil {
+			w.WriteHeader(http.StatusBadGateway)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+		defer resp.Body.Close()
+		w.Header().Set("Content-Type", "application/json")
+		io.Copy(w, resp.Body)
+	})
+
+	// Managed Apps CRUD — registry of apps available for installation
+	mux.HandleFunc("/api/managed-apps", func(w http.ResponseWriter, r *http.Request) {
+		claims, err := middleware.ExtractTokenFromRequest(r, cfg.JWTSecret)
+		if err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.Method {
+		case http.MethodGet:
+			rows, err := pool.Query(r.Context(),
+				`SELECT ma.id, ma.name, ma.bundle_id, ma.app_type, ma.itunes_store_id, ma.manifest_url,
+				        ma.purchased_qty, ma.notes, ma.created_at, ma.updated_at,
+				        (SELECT COUNT(*) FROM device_apps da WHERE da.app_id = ma.id) as installed_count,
+				        ma.icon_url
+				 FROM managed_apps ma ORDER BY ma.name`)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+				return
+			}
+			defer rows.Close()
+
+			type appRow struct {
+				ID             string `json:"id"`
+				Name           string `json:"name"`
+				BundleID       string `json:"bundle_id"`
+				AppType        string `json:"app_type"`
+				ItunesStoreID  string `json:"itunes_store_id"`
+				ManifestURL    string `json:"manifest_url"`
+				PurchasedQty   int    `json:"purchased_qty"`
+				Notes          string `json:"notes"`
+				CreatedAt      string `json:"created_at"`
+				UpdatedAt      string `json:"updated_at"`
+				InstalledCount int    `json:"installed_count"`
+				IconURL        string `json:"icon_url"`
+			}
+			var apps []appRow
+			for rows.Next() {
+				var a appRow
+				var createdAt, updatedAt time.Time
+				if err := rows.Scan(&a.ID, &a.Name, &a.BundleID, &a.AppType, &a.ItunesStoreID, &a.ManifestURL,
+					&a.PurchasedQty, &a.Notes, &createdAt, &updatedAt, &a.InstalledCount, &a.IconURL); err != nil {
+					continue
+				}
+				a.CreatedAt = createdAt.Format(time.RFC3339)
+				a.UpdatedAt = updatedAt.Format(time.RFC3339)
+				apps = append(apps, a)
+			}
+			if apps == nil {
+				apps = []appRow{}
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{"apps": apps})
+
+		case http.MethodPost:
+			if claims.Role != "admin" && claims.Role != "operator" {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+			var body struct {
+				Name          string `json:"name"`
+				BundleID      string `json:"bundle_id"`
+				AppType       string `json:"app_type"`
+				ItunesStoreID string `json:"itunes_store_id"`
+				ManifestURL   string `json:"manifest_url"`
+				PurchasedQty  int    `json:"purchased_qty"`
+				Notes         string `json:"notes"`
+				IconURL       string `json:"icon_url"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Name == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				w.Write([]byte(`{"error":"name is required"}`))
+				return
+			}
+			if body.AppType == "" {
+				body.AppType = "vpp"
+			}
+			var id string
+			err := pool.QueryRow(r.Context(),
+				`INSERT INTO managed_apps (name, bundle_id, app_type, itunes_store_id, manifest_url, purchased_qty, notes, icon_url)
+				 VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+				body.Name, body.BundleID, body.AppType, body.ItunesStoreID, body.ManifestURL, body.PurchasedQty, body.Notes, body.IconURL,
+			).Scan(&id)
+			if err != nil {
+				w.WriteHeader(http.StatusConflict)
+				json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]string{"id": id})
+
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	})
+
+	// Managed App by ID — PUT / DELETE
+	mux.HandleFunc("/api/managed-apps/", func(w http.ResponseWriter, r *http.Request) {
+		claims, err := middleware.ExtractTokenFromRequest(r, cfg.JWTSecret)
+		if err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		if claims.Role != "admin" && claims.Role != "operator" {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		id := strings.TrimPrefix(r.URL.Path, "/api/managed-apps/")
+		if id == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.Method {
+		case http.MethodPut:
+			var body map[string]interface{}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			allowed := []string{"name", "bundle_id", "app_type", "itunes_store_id", "manifest_url", "purchased_qty", "notes", "icon_url"}
+			sets := []string{}
+			args := []interface{}{}
+			idx := 1
+			for _, k := range allowed {
+				if v, ok := body[k]; ok {
+					sets = append(sets, fmt.Sprintf("%s=$%d", k, idx))
+					args = append(args, v)
+					idx++
+				}
+			}
+			if len(sets) == 0 {
+				w.Write([]byte(`{"ok":true}`))
+				return
+			}
+			q := fmt.Sprintf("UPDATE managed_apps SET %s, updated_at=now() WHERE id=$%d", strings.Join(sets, ", "), idx)
+			args = append(args, id)
+			if _, err := pool.Exec(r.Context(), q, args...); err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+				return
+			}
+			w.Write([]byte(`{"ok":true}`))
+
+		case http.MethodDelete:
+			if _, err := pool.Exec(r.Context(), `DELETE FROM managed_apps WHERE id=$1`, id); err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			w.Write([]byte(`{"ok":true}`))
+
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	})
+
+	// Device Apps — list apps installed on a device
+	mux.HandleFunc("/api/device-apps", func(w http.ResponseWriter, r *http.Request) {
+		if _, err := middleware.ExtractTokenFromRequest(r, cfg.JWTSecret); err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.Method {
+		case http.MethodGet:
+			deviceUdid := r.URL.Query().Get("device_udid")
+			if deviceUdid == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				w.Write([]byte(`{"error":"device_udid required"}`))
+				return
+			}
+			rows, err := pool.Query(r.Context(),
+				`SELECT da.id, da.device_udid, da.app_id, da.installed_at,
+				        ma.name, ma.bundle_id, ma.app_type
+				 FROM device_apps da JOIN managed_apps ma ON da.app_id = ma.id
+				 WHERE da.device_udid = $1 ORDER BY da.installed_at DESC`, deviceUdid)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			defer rows.Close()
+			type row struct {
+				ID          string `json:"id"`
+				DeviceUdid  string `json:"device_udid"`
+				AppID       string `json:"app_id"`
+				InstalledAt string `json:"installed_at"`
+				AppName     string `json:"app_name"`
+				BundleID    string `json:"bundle_id"`
+				AppType     string `json:"app_type"`
+			}
+			var items []row
+			for rows.Next() {
+				var r row
+				var installedAt time.Time
+				if err := rows.Scan(&r.ID, &r.DeviceUdid, &r.AppID, &installedAt, &r.AppName, &r.BundleID, &r.AppType); err != nil {
+					continue
+				}
+				r.InstalledAt = installedAt.Format(time.RFC3339)
+				items = append(items, r)
+			}
+			if items == nil {
+				items = []row{}
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{"device_apps": items})
+
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	})
+
+	// Install app to device — creates binding + sends MDM command
+	mux.HandleFunc("/api/device-apps/install", func(w http.ResponseWriter, r *http.Request) {
+		claims, err := middleware.ExtractTokenFromRequest(r, cfg.JWTSecret)
+		if err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		if claims.Role != "admin" && claims.Role != "operator" {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+
+		var body struct {
+			AppID string `json:"app_id"`
+			UDID  string `json:"udid"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.AppID == "" || body.UDID == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"app_id and udid required"}`))
+			return
+		}
+
+		// Look up the managed app
+		var appType, itunesStoreID, manifestURL, bundleID, appName string
+		var purchasedQty int
+		err = pool.QueryRow(r.Context(),
+			`SELECT app_type, itunes_store_id, manifest_url, bundle_id, name, purchased_qty FROM managed_apps WHERE id=$1`, body.AppID,
+		).Scan(&appType, &itunesStoreID, &manifestURL, &bundleID, &appName, &purchasedQty)
+		if err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(`{"error":"app not found"}`))
+			return
+		}
+
+		// Check available quantity
+		var installedCount int
+		pool.QueryRow(r.Context(), `SELECT COUNT(*) FROM device_apps WHERE app_id=$1`, body.AppID).Scan(&installedCount)
+		if purchasedQty > 0 && installedCount >= purchasedQty {
+			w.WriteHeader(http.StatusConflict)
+			json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("已達採購上限 (%d/%d)", installedCount, purchasedQty)})
+			return
+		}
+
+		// Check if already installed on this device
+		var exists int
+		pool.QueryRow(r.Context(), `SELECT COUNT(*) FROM device_apps WHERE device_udid=$1 AND app_id=$2`, body.UDID, body.AppID).Scan(&exists)
+		if exists > 0 {
+			w.WriteHeader(http.StatusConflict)
+			w.Write([]byte(`{"error":"此 App 已安裝在該裝置上"}`))
+			return
+		}
+
+		// Send MDM command
+		var payload map[string]interface{}
+		if appType == "enterprise" {
+			payload = map[string]interface{}{
+				"udid":         body.UDID,
+				"request_type": "InstallEnterpriseApplication",
+				"manifest_url": manifestURL,
+			}
+		} else {
+			// VPP app — assign license first if VPP client available
+			if vppClient != nil && itunesStoreID != "" {
+				// Get device serial number for VPP
+				dev, devErr := deviceRepo.GetByUDID(r.Context(), body.UDID)
+				if devErr == nil && dev.SerialNumber != "" {
+					_, _ = vppClient.AssignLicense(r.Context(), itunesStoreID, []string{dev.SerialNumber})
+				}
+			}
+			payload = map[string]interface{}{
+				"udid":            body.UDID,
+				"request_type":    "InstallApplication",
+				"itunes_store_id": itunesStoreID,
+				"options":         map[string]interface{}{"purchase_method": 1},
+			}
+		}
+
+		result, cmdErr := mdmClient.SendCommand(r.Context(), payload)
+		if cmdErr != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": cmdErr.Error()})
+			return
+		}
+		_ = mdmClient.SendPush(r.Context(), body.UDID)
+
+		// Create device_app binding
+		pool.Exec(r.Context(),
+			`INSERT INTO device_apps (device_udid, app_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+			body.UDID, body.AppID)
+
+		// Audit log
+		_ = auditRepo.Create(r.Context(), &domain.AuditLog{
+			UserID: claims.UserID, Username: claims.Username,
+			Action: "install_app", Target: body.UDID, Detail: appName + " (" + bundleID + ")",
+		})
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"ok":           true,
+			"command_uuid": result.CommandUUID,
+			"raw_response": result.RawResponse,
+		})
+	})
+
+	// Uninstall app from device — removes binding + sends MDM command
+	mux.HandleFunc("/api/device-apps/uninstall", func(w http.ResponseWriter, r *http.Request) {
+		claims, err := middleware.ExtractTokenFromRequest(r, cfg.JWTSecret)
+		if err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		if claims.Role != "admin" && claims.Role != "operator" {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+
+		var body struct {
+			AppID string `json:"app_id"`
+			UDID  string `json:"udid"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.AppID == "" || body.UDID == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"app_id and udid required"}`))
+			return
+		}
+
+		// Look up bundle_id for the remove command
+		var bundleID, appName string
+		err = pool.QueryRow(r.Context(),
+			`SELECT bundle_id, name FROM managed_apps WHERE id=$1`, body.AppID,
+		).Scan(&bundleID, &appName)
+		if err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(`{"error":"app not found"}`))
+			return
+		}
+
+		// Send MDM remove command
+		result, cmdErr := mdmClient.SendCommand(r.Context(), map[string]interface{}{
+			"udid":         body.UDID,
+			"request_type": "RemoveApplication",
+			"identifier":   bundleID,
+		})
+		if cmdErr != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": cmdErr.Error()})
+			return
+		}
+		_ = mdmClient.SendPush(r.Context(), body.UDID)
+
+		// Remove binding
+		pool.Exec(r.Context(), `DELETE FROM device_apps WHERE device_udid=$1 AND app_id=$2`, body.UDID, body.AppID)
+
+		// Audit log
+		_ = auditRepo.Create(r.Context(), &domain.AuditLog{
+			UserID: claims.UserID, Username: claims.Username,
+			Action: "remove_app", Target: body.UDID, Detail: appName + " (" + bundleID + ")",
+		})
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"ok":           true,
+			"command_uuid": result.CommandUUID,
+			"raw_response": result.RawResponse,
+		})
 	})
 
 	// User update API
@@ -758,7 +1190,9 @@ func main() {
 			rows.Scan(&item.ID, &item.Username, &item.DisplayName, &item.Role, &item.IsActive)
 			users = append(users, item)
 		}
-		if users == nil { users = []u{} }
+		if users == nil {
+			users = []u{}
+		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{"users": users})
 	})
@@ -776,11 +1210,13 @@ func main() {
 		case http.MethodGet:
 			statusFilter := r.URL.Query().Get("status")
 			deviceUdid := r.URL.Query().Get("device_udid")
+			showArchived := r.URL.Query().Get("show_archived")
 			q := `SELECT r.id, r.device_udid, r.borrower_id, r.borrower_name, r.approver_id, r.approver_name,
 			             r.status, r.purpose, r.borrow_date, r.expected_return, r.actual_return, r.notes,
 			             r.created_at, r.updated_at,
 			             COALESCE(d.device_name,'') as device_name, COALESCE(d.serial_number,'') as device_serial,
-			             a.custodian_id, COALESCE(a.custodian_name,'') as custodian_name
+			             a.custodian_id, COALESCE(a.custodian_name,'') as custodian_name,
+			             r.rental_number, r.is_archived, r.return_checklist, r.return_notes
 			      FROM rentals r LEFT JOIN devices d ON r.device_udid = d.udid
 			      LEFT JOIN assets a ON a.device_udid = r.device_udid WHERE 1=1`
 			args := []interface{}{}
@@ -795,7 +1231,10 @@ func main() {
 				args = append(args, deviceUdid)
 				idx++
 			}
-			q += ` ORDER BY r.created_at DESC`
+			if showArchived != "true" {
+				q += ` AND r.is_archived = false`
+			}
+			q += ` ORDER BY r.rental_number DESC`
 
 			rows, err := pool.Query(r.Context(), q, args...)
 			if err != nil {
@@ -805,24 +1244,28 @@ func main() {
 			defer rows.Close()
 
 			type rentalRow struct {
-				ID             string  `json:"id"`
-				DeviceUdid     string  `json:"device_udid"`
-				BorrowerID     string  `json:"borrower_id"`
-				BorrowerName   string  `json:"borrower_name"`
-				ApproverID     *string `json:"approver_id"`
-				ApproverName   string  `json:"approver_name"`
-				Status         string  `json:"status"`
-				Purpose        string  `json:"purpose"`
-				BorrowDate     string  `json:"borrow_date"`
-				ExpectedReturn *string `json:"expected_return"`
-				ActualReturn   *string `json:"actual_return"`
-				Notes          string  `json:"notes"`
-				CreatedAt      string  `json:"created_at"`
-				UpdatedAt      string  `json:"updated_at"`
-				DeviceName     string  `json:"device_name"`
-				DeviceSerial   string  `json:"device_serial"`
-				CustodianID    *string `json:"custodian_id"`
-				CustodianName  string  `json:"custodian_name"`
+				ID              string                 `json:"id"`
+				DeviceUdid      string                 `json:"device_udid"`
+				BorrowerID      string                 `json:"borrower_id"`
+				BorrowerName    string                 `json:"borrower_name"`
+				ApproverID      *string                `json:"approver_id"`
+				ApproverName    string                 `json:"approver_name"`
+				Status          string                 `json:"status"`
+				Purpose         string                 `json:"purpose"`
+				BorrowDate      string                 `json:"borrow_date"`
+				ExpectedReturn  *string                `json:"expected_return"`
+				ActualReturn    *string                `json:"actual_return"`
+				Notes           string                 `json:"notes"`
+				CreatedAt       string                 `json:"created_at"`
+				UpdatedAt       string                 `json:"updated_at"`
+				DeviceName      string                 `json:"device_name"`
+				DeviceSerial    string                 `json:"device_serial"`
+				CustodianID     *string                `json:"custodian_id"`
+				CustodianName   string                 `json:"custodian_name"`
+				RentalNumber    int                    `json:"rental_number"`
+				IsArchived      bool                   `json:"is_archived"`
+				ReturnChecklist map[string]interface{} `json:"return_checklist"`
+				ReturnNotes     string                 `json:"return_notes"`
 			}
 			var rentals []rentalRow
 			for rows.Next() {
@@ -831,22 +1274,37 @@ func main() {
 				var expectedReturn *time.Time
 				var actualReturn *time.Time
 				var approverID *string
+				var checklistJSON []byte
 				if err := rows.Scan(&r2.ID, &r2.DeviceUdid, &r2.BorrowerID, &r2.BorrowerName, &approverID, &r2.ApproverName,
 					&r2.Status, &r2.Purpose, &borrowDate, &expectedReturn, &actualReturn, &r2.Notes,
 					&createdAt, &updatedAt, &r2.DeviceName, &r2.DeviceSerial,
-					&r2.CustodianID, &r2.CustodianName); err != nil {
+					&r2.CustodianID, &r2.CustodianName, &r2.RentalNumber, &r2.IsArchived,
+					&checklistJSON, &r2.ReturnNotes); err != nil {
 					log.Printf("rental scan: %v", err)
 					continue
 				}
 				r2.BorrowDate = borrowDate.Format(time.RFC3339)
 				r2.CreatedAt = createdAt.Format(time.RFC3339)
 				r2.UpdatedAt = updatedAt.Format(time.RFC3339)
-				if approverID != nil { r2.ApproverID = approverID }
-				if expectedReturn != nil { s := expectedReturn.Format("2006-01-02"); r2.ExpectedReturn = &s }
-				if actualReturn != nil { s := actualReturn.Format(time.RFC3339); r2.ActualReturn = &s }
+				if approverID != nil {
+					r2.ApproverID = approverID
+				}
+				if len(checklistJSON) > 0 {
+					json.Unmarshal(checklistJSON, &r2.ReturnChecklist)
+				}
+				if expectedReturn != nil {
+					s := expectedReturn.Format("2006-01-02")
+					r2.ExpectedReturn = &s
+				}
+				if actualReturn != nil {
+					s := actualReturn.Format(time.RFC3339)
+					r2.ActualReturn = &s
+				}
 				rentals = append(rentals, r2)
 			}
-			if rentals == nil { rentals = []rentalRow{} }
+			if rentals == nil {
+				rentals = []rentalRow{}
+			}
 			json.NewEncoder(w).Encode(map[string]interface{}{"rentals": rentals})
 
 		case http.MethodPost:
@@ -866,13 +1324,17 @@ func main() {
 			var borrowerName string
 			pool.QueryRow(r.Context(), `SELECT COALESCE(display_name, username) FROM users WHERE id=$1`, body.BorrowerID).Scan(&borrowerName)
 
+			// Get next rental_number for the batch (all devices share the same number)
+			var rentalNumber int
+			pool.QueryRow(r.Context(), `SELECT COALESCE(MAX(rental_number), 0) + 1 FROM rentals`).Scan(&rentalNumber)
+
 			var ids []string
 			for _, udid := range body.DeviceUdids {
 				var id string
 				err := pool.QueryRow(r.Context(),
-					`INSERT INTO rentals (device_udid, borrower_id, borrower_name, purpose, expected_return, notes)
-					 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-					udid, body.BorrowerID, borrowerName, body.Purpose, body.ExpectedReturn, body.Notes,
+					`INSERT INTO rentals (device_udid, borrower_id, borrower_name, purpose, expected_return, notes, rental_number)
+					 VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+					udid, body.BorrowerID, borrowerName, body.Purpose, body.ExpectedReturn, body.Notes, rentalNumber,
 				).Scan(&id)
 				if err != nil {
 					log.Printf("rental insert: %v", err)
@@ -881,7 +1343,7 @@ func main() {
 				ids = append(ids, id)
 			}
 			_ = claims // used for auth check
-			json.NewEncoder(w).Encode(map[string]interface{}{"ids": ids, "count": len(ids)})
+			json.NewEncoder(w).Encode(map[string]interface{}{"ids": ids, "count": len(ids), "rental_number": rentalNumber})
 
 		default:
 			w.WriteHeader(http.StatusMethodNotAllowed)
@@ -900,16 +1362,19 @@ func main() {
 		parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/rentals/"), "/")
 		id := parts[0]
 		action := ""
-		if len(parts) > 1 { action = parts[1] }
+		if len(parts) > 1 {
+			action = parts[1]
+		}
 
 		if r.Method == http.MethodPost && action != "" {
 			// Get approver display name
 			var approverDisplayName string
 			pool.QueryRow(r.Context(), `SELECT COALESCE(display_name, username) FROM users WHERE id=$1`, claims.UserID).Scan(&approverDisplayName)
 
-			// Get rental info
+			// Get rental info — and its rental_number to apply batch actions
 			var deviceUdid, status string
-			if err := pool.QueryRow(r.Context(), `SELECT device_udid, status FROM rentals WHERE id=$1`, id).Scan(&deviceUdid, &status); err != nil {
+			var rentalNumber int
+			if err := pool.QueryRow(r.Context(), `SELECT device_udid, status, rental_number FROM rentals WHERE id=$1`, id).Scan(&deviceUdid, &status, &rentalNumber); err != nil {
 				w.WriteHeader(http.StatusNotFound)
 				w.Write([]byte(`{"error":"rental not found"}`))
 				return
@@ -923,8 +1388,8 @@ func main() {
 					return
 				}
 				pool.Exec(r.Context(),
-					`UPDATE rentals SET status='approved', approver_id=$1, approver_name=$2, updated_at=now() WHERE id=$3`,
-					claims.UserID, approverDisplayName, id)
+					`UPDATE rentals SET status='approved', approver_id=$1, approver_name=$2, updated_at=now() WHERE rental_number=$3 AND status='pending'`,
+					claims.UserID, approverDisplayName, rentalNumber)
 				w.Write([]byte(`{"ok":true,"status":"approved"}`))
 
 			case "activate":
@@ -933,14 +1398,23 @@ func main() {
 					w.Write([]byte(`{"error":"rental is not approved"}`))
 					return
 				}
-				pool.Exec(r.Context(), `UPDATE rentals SET status='active', borrow_date=now(), updated_at=now() WHERE id=$1`, id)
-				// Update asset custodian
+				// Activate all in batch
+				pool.Exec(r.Context(), `UPDATE rentals SET status='active', borrow_date=now(), updated_at=now() WHERE rental_number=$1 AND status='approved'`, rentalNumber)
+				// Update asset custodian for all devices in batch
 				var borrowerID, borrowerName string
 				pool.QueryRow(r.Context(), `SELECT borrower_id, borrower_name FROM rentals WHERE id=$1`, id).Scan(&borrowerID, &borrowerName)
-				pool.Exec(r.Context(), `UPDATE assets SET custodian_id=$1, custodian_name=$2, borrow_date=now() WHERE device_udid=$3`,
-					borrowerID, borrowerName, deviceUdid)
+				batchRows, _ := pool.Query(r.Context(), `SELECT device_udid FROM rentals WHERE rental_number=$1`, rentalNumber)
+				if batchRows != nil {
+					for batchRows.Next() {
+						var batchUdid string
+						batchRows.Scan(&batchUdid)
+						pool.Exec(r.Context(), `UPDATE assets SET custodian_id=$1, custodian_name=$2, borrow_date=now() WHERE device_udid=$3`,
+							borrowerID, borrowerName, batchUdid)
+					}
+					batchRows.Close()
+				}
 
-				log.Printf("[rental] activated: device=%s borrower=%s", deviceUdid, borrowerName)
+				log.Printf("[rental] batch activated: rental_number=%d borrower=%s", rentalNumber, borrowerName)
 				w.Write([]byte(`{"ok":true,"status":"active"}`))
 
 			case "return":
@@ -949,13 +1423,38 @@ func main() {
 					w.Write([]byte(`{"error":"rental is not active"}`))
 					return
 				}
-				pool.Exec(r.Context(), `UPDATE rentals SET status='returned', actual_return=now(), updated_at=now() WHERE id=$1`, id)
-				// Restore custodian to the person who accepted the return (current user)
-				pool.Exec(r.Context(),
-					`UPDATE assets SET custodian_id=$1, custodian_name=$2, borrow_date=NULL WHERE device_udid=$3`,
-					claims.UserID, approverDisplayName, deviceUdid)
+				// Read return checklist + notes from request body
+				var returnBody struct {
+					Notes     string                 `json:"notes"`
+					Checklist map[string]interface{} `json:"checklist"`
+				}
+				json.NewDecoder(r.Body).Decode(&returnBody)
 
-				log.Printf("[rental] returned: device=%s custodian restored to %s", deviceUdid, approverDisplayName)
+				var checklistJSON []byte
+				if returnBody.Checklist != nil {
+					checklistJSON, _ = json.Marshal(returnBody.Checklist)
+				}
+
+				// Return all in batch with checklist data
+				pool.Exec(r.Context(),
+					`UPDATE rentals SET status='returned', actual_return=now(), updated_at=now(),
+					 return_checklist=$1, return_notes=$2
+					 WHERE rental_number=$3 AND status='active'`,
+					checklistJSON, returnBody.Notes, rentalNumber)
+				// Restore custodian for all devices in batch
+				batchRows2, _ := pool.Query(r.Context(), `SELECT device_udid FROM rentals WHERE rental_number=$1`, rentalNumber)
+				if batchRows2 != nil {
+					for batchRows2.Next() {
+						var batchUdid string
+						batchRows2.Scan(&batchUdid)
+						pool.Exec(r.Context(),
+							`UPDATE assets SET custodian_id=$1, custodian_name=$2, borrow_date=NULL WHERE device_udid=$3`,
+							claims.UserID, approverDisplayName, batchUdid)
+					}
+					batchRows2.Close()
+				}
+
+				log.Printf("[rental] batch returned: rental_number=%d custodian restored to %s", rentalNumber, approverDisplayName)
 				w.Write([]byte(`{"ok":true,"status":"returned"}`))
 
 			case "reject":
@@ -965,8 +1464,8 @@ func main() {
 					return
 				}
 				pool.Exec(r.Context(),
-					`UPDATE rentals SET status='rejected', approver_id=$1, approver_name=$2, updated_at=now() WHERE id=$3`,
-					claims.UserID, approverDisplayName, id)
+					`UPDATE rentals SET status='rejected', approver_id=$1, approver_name=$2, updated_at=now() WHERE rental_number=$3 AND status='pending'`,
+					claims.UserID, approverDisplayName, rentalNumber)
 				w.Write([]byte(`{"ok":true,"status":"rejected"}`))
 
 			default:
@@ -976,12 +1475,56 @@ func main() {
 		}
 
 		if r.Method == http.MethodDelete {
-			pool.Exec(r.Context(), `DELETE FROM rentals WHERE id=$1`, id)
+			var rentalNumber int
+			pool.QueryRow(r.Context(), `SELECT rental_number FROM rentals WHERE id=$1`, id).Scan(&rentalNumber)
+			pool.Exec(r.Context(), `DELETE FROM rentals WHERE rental_number=$1`, rentalNumber)
 			w.Write([]byte(`{"ok":true}`))
 			return
 		}
 
 		w.WriteHeader(http.StatusMethodNotAllowed)
+	})
+
+	// Batch archive rentals
+	mux.HandleFunc("/api/rentals-archive", func(w http.ResponseWriter, r *http.Request) {
+		claims, err := middleware.ExtractTokenFromRequest(r, cfg.JWTSecret)
+		if err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		if claims.Role != "admin" && claims.Role != "operator" {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+
+		var body struct {
+			IDs []string `json:"ids"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || len(body.IDs) == 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"ids required"}`))
+			return
+		}
+
+		placeholders := make([]string, len(body.IDs))
+		args := []interface{}{}
+		for i, id := range body.IDs {
+			placeholders[i] = fmt.Sprintf("$%d", i+1)
+			args = append(args, id)
+		}
+		q := fmt.Sprintf("UPDATE rentals SET is_archived = true, updated_at = now() WHERE id IN (%s)", strings.Join(placeholders, ","))
+		_, err = pool.Exec(r.Context(), q, args...)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+		w.Write([]byte(`{"ok":true}`))
 	})
 
 	// Categories API (tree structure)
@@ -1002,11 +1545,11 @@ func main() {
 			}
 			defer rows.Close()
 			type cat struct {
-				ID       string  `json:"id"`
-				ParentID *string `json:"parent_id"`
-				Name     string  `json:"name"`
-				Level    int     `json:"level"`
-				SortOrder int    `json:"sort_order"`
+				ID        string  `json:"id"`
+				ParentID  *string `json:"parent_id"`
+				Name      string  `json:"name"`
+				Level     int     `json:"level"`
+				SortOrder int     `json:"sort_order"`
 			}
 			var cats []cat
 			for rows.Next() {
@@ -1014,7 +1557,9 @@ func main() {
 				rows.Scan(&c.ID, &c.ParentID, &c.Name, &c.Level, &c.SortOrder)
 				cats = append(cats, c)
 			}
-			if cats == nil { cats = []cat{} }
+			if cats == nil {
+				cats = []cat{}
+			}
 			json.NewEncoder(w).Encode(map[string]interface{}{"categories": cats})
 
 		case http.MethodPost:
@@ -1052,7 +1597,9 @@ func main() {
 
 		switch r.Method {
 		case http.MethodPut:
-			var body struct { Name string `json:"name"` }
+			var body struct {
+				Name string `json:"name"`
+			}
 			json.NewDecoder(r.Body).Decode(&body)
 			pool.Exec(r.Context(), `UPDATE categories SET name=$1 WHERE id=$2`, body.Name, id)
 			w.Write([]byte(`{"ok":true}`))
@@ -1234,7 +1781,7 @@ func main() {
 
 func runMigrations(pool *pgxpool.Pool) {
 	ctx := context.Background()
-	for i, sql := range []string{db.MigrationSQL, db.Migration002SQL, db.Migration003SQL, db.Migration004SQL, db.Migration005SQL, db.Migration006SQL} {
+	for i, sql := range []string{db.MigrationSQL, db.Migration002SQL, db.Migration003SQL, db.Migration004SQL, db.Migration005SQL, db.Migration006SQL, db.Migration007SQL, db.Migration008SQL, db.Migration009SQL, db.Migration010SQL, db.Migration011SQL} {
 		if _, err := pool.Exec(ctx, sql); err != nil {
 			log.Printf("migration %d: %v (may already be applied)", i+1, err)
 		} else {
@@ -1242,4 +1789,3 @@ func runMigrations(pool *pgxpool.Pool) {
 		}
 	}
 }
-

@@ -49,6 +49,9 @@ func main() {
 	// Run migrations
 	runMigrations(pool)
 
+	// Backfill app icons from iTunes API for existing apps
+	go backfillAppIcons(pool)
+
 	// Adapters
 	mdmClient := micromdm.NewClient(cfg.MicroMDMURL, cfg.MicroMDMKey)
 	vppClient, err := vpp.NewClient(cfg.VPPTokenPath)
@@ -716,6 +719,34 @@ func main() {
 		io.Copy(w, resp.Body)
 	})
 
+	// iTunes Search API proxy — search apps by keyword
+	mux.HandleFunc("/api/itunes-search", func(w http.ResponseWriter, r *http.Request) {
+		if _, err := middleware.ExtractTokenFromRequest(r, cfg.JWTSecret); err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		term := r.URL.Query().Get("term")
+		if term == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"term required"}`))
+			return
+		}
+		limit := r.URL.Query().Get("limit")
+		if limit == "" {
+			limit = "10"
+		}
+		searchURL := fmt.Sprintf("https://itunes.apple.com/search?term=%s&country=tw&entity=software&limit=%s", term, limit)
+		resp, err := http.Get(searchURL)
+		if err != nil {
+			w.WriteHeader(http.StatusBadGateway)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+		defer resp.Body.Close()
+		w.Header().Set("Content-Type", "application/json")
+		io.Copy(w, resp.Body)
+	})
+
 	// Managed Apps CRUD — registry of apps available for installation
 	mux.HandleFunc("/api/managed-apps", func(w http.ResponseWriter, r *http.Request) {
 		claims, err := middleware.ExtractTokenFromRequest(r, cfg.JWTSecret)
@@ -1027,6 +1058,79 @@ func main() {
 		_ = auditRepo.Create(r.Context(), &domain.AuditLog{
 			UserID: claims.UserID, Username: claims.Username,
 			Action: "install_app", Target: body.UDID, Detail: appName + " (" + bundleID + ")",
+		})
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"ok":           true,
+			"command_uuid": result.CommandUUID,
+			"raw_response": result.RawResponse,
+		})
+	})
+
+	// Update app on device — re-sends install command to trigger update
+	mux.HandleFunc("/api/device-apps/update", func(w http.ResponseWriter, r *http.Request) {
+		claims, err := middleware.ExtractTokenFromRequest(r, cfg.JWTSecret)
+		if err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		if claims.Role != "admin" && claims.Role != "operator" {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+
+		var body struct {
+			AppID string `json:"app_id"`
+			UDID  string `json:"udid"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.AppID == "" || body.UDID == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"app_id and udid required"}`))
+			return
+		}
+
+		var appType, itunesStoreID, manifestURL, bundleID, appName string
+		err = pool.QueryRow(r.Context(),
+			`SELECT app_type, itunes_store_id, manifest_url, bundle_id, name FROM managed_apps WHERE id=$1`, body.AppID,
+		).Scan(&appType, &itunesStoreID, &manifestURL, &bundleID, &appName)
+		if err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(`{"error":"app not found"}`))
+			return
+		}
+
+		var payload map[string]interface{}
+		if appType == "enterprise" {
+			payload = map[string]interface{}{
+				"udid":         body.UDID,
+				"request_type": "InstallEnterpriseApplication",
+				"manifest_url": manifestURL,
+			}
+		} else {
+			payload = map[string]interface{}{
+				"udid":            body.UDID,
+				"request_type":    "InstallApplication",
+				"itunes_store_id": itunesStoreID,
+				"options":         map[string]interface{}{"purchase_method": 1},
+			}
+		}
+
+		result, cmdErr := mdmClient.SendCommand(r.Context(), payload)
+		if cmdErr != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": cmdErr.Error()})
+			return
+		}
+		_ = mdmClient.SendPush(r.Context(), body.UDID)
+
+		_ = auditRepo.Create(r.Context(), &domain.AuditLog{
+			UserID: claims.UserID, Username: claims.Username,
+			Action: "update_app", Target: body.UDID, Detail: appName + " (" + bundleID + ")",
 		})
 
 		json.NewEncoder(w).Encode(map[string]interface{}{
@@ -1787,5 +1891,64 @@ func runMigrations(pool *pgxpool.Pool) {
 		} else {
 			log.Printf("migration %d: applied", i+1)
 		}
+	}
+}
+
+// backfillAppIcons queries iTunes Lookup API for VPP apps missing icon_url and fills them in.
+func backfillAppIcons(pool *pgxpool.Pool) {
+	ctx := context.Background()
+	rows, err := pool.Query(ctx,
+		`SELECT id, bundle_id, itunes_store_id FROM managed_apps WHERE icon_url = '' AND app_type = 'vpp' AND bundle_id != ''`)
+	if err != nil {
+		log.Printf("backfill icons query: %v", err)
+		return
+	}
+	defer rows.Close()
+
+	type appInfo struct{ id, bundleID, itunesID string }
+	var apps []appInfo
+	for rows.Next() {
+		var a appInfo
+		rows.Scan(&a.id, &a.bundleID, &a.itunesID)
+		apps = append(apps, a)
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	for _, a := range apps {
+		lookupURL := fmt.Sprintf("https://itunes.apple.com/lookup?bundleId=%s&country=tw", a.bundleID)
+		resp, err := client.Get(lookupURL)
+		if err != nil {
+			log.Printf("backfill icon %s: %v", a.bundleID, err)
+			continue
+		}
+		var result struct {
+			ResultCount int `json:"resultCount"`
+			Results     []struct {
+				ArtworkUrl512 string `json:"artworkUrl512"`
+				ArtworkUrl100 string `json:"artworkUrl100"`
+				TrackID       int    `json:"trackId"`
+			} `json:"results"`
+		}
+		json.NewDecoder(resp.Body).Decode(&result)
+		resp.Body.Close()
+		if result.ResultCount == 0 {
+			continue
+		}
+		r := result.Results[0]
+		iconURL := r.ArtworkUrl512
+		if iconURL == "" {
+			iconURL = r.ArtworkUrl100
+		}
+		if iconURL == "" {
+			continue
+		}
+		// Update icon_url (and itunes_store_id if missing)
+		if a.itunesID == "" && r.TrackID > 0 {
+			pool.Exec(ctx, `UPDATE managed_apps SET icon_url=$1, itunes_store_id=$2, updated_at=now() WHERE id=$3`,
+				iconURL, fmt.Sprint(r.TrackID), a.id)
+		} else {
+			pool.Exec(ctx, `UPDATE managed_apps SET icon_url=$1, updated_at=now() WHERE id=$2`, iconURL, a.id)
+		}
+		log.Printf("backfill icon: %s → %s", a.bundleID, iconURL[:60]+"...")
 	}
 }

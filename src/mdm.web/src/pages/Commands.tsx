@@ -5,12 +5,13 @@ import { useEventStore } from "../stores/eventStore";
 import { useTranslation } from "react-i18next";
 import { DevicePicker } from "../components/DevicePicker";
 import { ProfilePicker } from "../components/ProfilePicker";
+import { AppPicker } from "../components/AppPicker";
 import { ResponseViewer } from "../components/ResponseViewer";
 import {
   Lock, RotateCcw, Power, KeyRound, Trash2, Download, Building2, PackageMinus,
   FileDown, FileX, Info, AppWindow, FileText, Shield, Award, Package,
   CalendarClock, UserPlus, CheckCircle, Key, MapPin, MapPinOff, Navigation,
-  Volume2, Bell, Eraser, Play,
+  Volume2, Bell, Eraser, Play, RefreshCcw,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -22,6 +23,9 @@ interface Command {
   fields?: string[];
   danger?: boolean;
   category: string;
+  /** If set, shows AppPicker and auto-fills the relevant field */
+  appField?: "itunesStoreId" | "manifestUrl" | "identifier";
+  appTypeFilter?: "vpp" | "enterprise";
 }
 
 const COMMANDS: Command[] = [
@@ -30,9 +34,11 @@ const COMMANDS: Command[] = [
   { id: "shutdown", label: "Shutdown", icon: <Power size={16} />, method: "shutdownDevice", category: "Device Control" },
   { id: "clearPasscode", label: "Clear Passcode", icon: <KeyRound size={16} />, method: "clearPasscode", category: "Device Control" },
   { id: "erase", label: "Erase Device", icon: <Trash2 size={16} />, method: "eraseDevice", fields: ["pin"], danger: true, category: "Device Control" },
-  { id: "installApp", label: "Install App (VPP)", icon: <Download size={16} />, method: "installApp", fields: ["itunesStoreId", "assignVppLicense"], category: "App Management" },
-  { id: "installEnterprise", label: "Install Enterprise App", icon: <Building2 size={16} />, method: "installEnterpriseApp", fields: ["manifestUrl"], category: "App Management" },
-  { id: "removeApp", label: "Remove App", icon: <PackageMinus size={16} />, method: "removeApp", fields: ["identifier"], category: "App Management" },
+  { id: "installApp", label: "Install App (VPP)", icon: <Download size={16} />, method: "installApp", fields: ["assignVppLicense"], appField: "itunesStoreId", appTypeFilter: "vpp", category: "App Management" },
+  { id: "installEnterprise", label: "Install Enterprise App", icon: <Building2 size={16} />, method: "installEnterpriseApp", appField: "manifestUrl", appTypeFilter: "enterprise", category: "App Management" },
+  { id: "updateApp", label: "Update App (VPP)", icon: <RefreshCcw size={16} />, method: "installApp", appField: "itunesStoreId", appTypeFilter: "vpp", category: "App Management" },
+  { id: "updateEnterprise", label: "Update Enterprise App", icon: <RefreshCcw size={16} />, method: "installEnterpriseApp", appField: "manifestUrl", appTypeFilter: "enterprise", category: "App Management" },
+  { id: "removeApp", label: "Remove App", icon: <PackageMinus size={16} />, method: "removeApp", appField: "identifier", category: "App Management" },
   { id: "installProfile", label: "Install Profile", icon: <FileDown size={16} />, method: "installProfile", fields: ["payload"], category: "Profile" },
   { id: "removeProfile", label: "Remove Profile", icon: <FileX size={16} />, method: "removeProfile", fields: ["identifier"], category: "Profile" },
   { id: "deviceInfo", label: "Device Info", icon: <Info size={16} />, method: "getDeviceInfo", category: "Information" },
@@ -70,8 +76,14 @@ export function Commands() {
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState("");
+  const [selectedAppId, setSelectedAppId] = useState("");
 
-  useEffect(() => { setFields({}); setResult(null); setSelectedProfileId(""); }, [selectedCmd]);
+  useEffect(() => {
+    setFields({});
+    setResult(null);
+    setSelectedProfileId("");
+    setSelectedAppId("");
+  }, [selectedCmd]);
 
   const handleExecute = async () => {
     if (!clients || selectedUdids.length === 0) {
@@ -152,6 +164,34 @@ export function Commands() {
                   <DevicePicker selected={selectedUdids} onChange={setSelectedUdids} />
                 </div>
 
+                {/* App picker for app-related commands */}
+                {selectedCmd.appField && (
+                  <div className="form-control">
+                    <label className="label">
+                      <span className="label-text font-medium">選擇 App</span>
+                    </label>
+                    <AppPicker
+                      appType={selectedCmd.appTypeFilter}
+                      selectedId={selectedAppId}
+                      onSelect={(app) => {
+                        if (app) {
+                          setSelectedAppId(app.id);
+                          if (selectedCmd.appField === "itunesStoreId") {
+                            setFields((f) => ({ ...f, itunesStoreId: app.itunes_store_id }));
+                          } else if (selectedCmd.appField === "manifestUrl") {
+                            setFields((f) => ({ ...f, manifestUrl: app.manifest_url }));
+                          } else if (selectedCmd.appField === "identifier") {
+                            setFields((f) => ({ ...f, identifier: app.bundle_id }));
+                          }
+                        } else {
+                          setSelectedAppId("");
+                        }
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* Other fields */}
                 {selectedCmd.fields?.map((field) => (
                   <div key={field} className="form-control">
                     <label className="label">

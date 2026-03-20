@@ -73,7 +73,9 @@
     "quickActions": "Quick Actions",
     "viewDevices": "View Devices",
     "sendCommand": "Send Command",
-    "monitorEvents": "Monitor Events"
+    "monitorEvents": "Monitor Events",
+    "rentedOut": "Rented Out",
+    "rentedOutDesc": "Currently borrowed devices"
   },
   "devices": {
     "title": "Devices",
@@ -118,6 +120,8 @@
       "Erase Device": "Erase Device",
       "Install App (VPP)": "Install App (VPP)",
       "Install Enterprise App": "Install Enterprise App",
+      "Update App (VPP)": "Update App (VPP)",
+      "Update Enterprise App": "Update Enterprise App",
       "Remove App": "Remove App",
       "Install Profile": "Install Profile",
       "Remove Profile": "Remove Profile",
@@ -199,7 +203,19 @@
     "action": "Action",
     "target": "Target",
     "detail": "Detail",
-    "noLogs": "No audit logs found"
+    "noLogs": "No audit logs found",
+    "liveTracking": "Live Command Tracking",
+    "deviceCount": "device(s)",
+    "executor": "Executor",
+    "sentTime": "Sent At",
+    "responseTime": "Response At",
+    "targetDevices": "Target Devices",
+    "responsePayload": "Response Payload",
+    "cmdStatus": {
+      "sent": "In Progress",
+      "acknowledged": "Completed",
+      "error": "Failed"
+    }
   },
   "devicePicker": {
     "placeholder": "Search by name, serial...",

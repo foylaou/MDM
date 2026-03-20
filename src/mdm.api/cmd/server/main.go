@@ -71,7 +71,7 @@ func main() {
 	// Services
 	authSvc := service.NewAuthService(userRepo, cfg.JWTSecret)
 	deviceSvc := service.NewDeviceService(mdmClient, deviceRepo, auditRepo)
-	commandSvc := service.NewCommandService(mdmClient, vppClient, auditRepo, broker, assetRepo)
+	commandSvc := service.NewCommandService(mdmClient, vppClient, auditRepo, broker, assetRepo, deviceRepo)
 	eventSvc := service.NewEventService(broker)
 	vppSvc := service.NewVPPService(vppClient)
 	userSvc := service.NewUserService(userRepo)
@@ -1067,15 +1067,11 @@ func main() {
 		})
 	})
 
-	// Update app on device — re-sends install command to trigger update
+	// Update app on device — re-sends install command to trigger update (all authenticated users)
 	mux.HandleFunc("/api/device-apps/update", func(w http.ResponseWriter, r *http.Request) {
 		claims, err := middleware.ExtractTokenFromRequest(r, cfg.JWTSecret)
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		if claims.Role != "admin" && claims.Role != "operator" {
-			w.WriteHeader(http.StatusForbidden)
 			return
 		}
 		if r.Method != http.MethodPost {

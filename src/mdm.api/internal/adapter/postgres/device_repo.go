@@ -74,6 +74,11 @@ func (r *DeviceRepo) GetByUDID(ctx context.Context, udid string) (*domain.Device
 	return d, nil
 }
 
+func (r *DeviceRepo) SetLostMode(ctx context.Context, udid string, enabled bool) error {
+	_, err := r.pool.Exec(ctx, `UPDATE devices SET is_lost_mode=$1 WHERE udid=$2`, enabled, udid)
+	return err
+}
+
 func (r *DeviceRepo) List(ctx context.Context, filter string, limit int, offset int) ([]*domain.Device, int, error) {
 	var total int
 	q := `SELECT count(*) FROM devices`

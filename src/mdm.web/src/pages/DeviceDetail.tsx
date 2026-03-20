@@ -89,7 +89,7 @@ const actionCommands: ActionCmd[] = [
   { label: "定位",         method: "getDeviceLocation",  icon: <MapPin size={14} />,   requiresLostMode: true },
   { label: "播放聲音",     method: "playLostModeSound",  icon: <Volume2 size={14} />,  requiresLostMode: true },
   { label: "安裝 App",     method: "showInstallApp",     icon: <Download size={14} />, roles: ["admin", "operator"] },
-  { label: "更新 App",     method: "showUpdateApp",      icon: <RefreshCcw size={14} />, roles: ["admin", "operator"] },
+  { label: "更新 App",     method: "showUpdateApp",      icon: <RefreshCcw size={14} /> },
   { label: "移除 App",     method: "showUninstallApp",   icon: <PackageMinus size={14} />, roles: ["admin", "operator"] },
   { label: "清除裝置",     method: "eraseDevice",        icon: <Trash2 size={14} />,   danger: true, roles: ["admin"] },
 ];
@@ -546,6 +546,26 @@ export function DeviceDetail() {
               <ResponseViewer rawPayload={actionResult} />
             </div>
           )}
+
+          {/* Device location display */}
+          {(() => {
+            const loc = device.details?.device_location as { latitude?: string; longitude?: string; updated_at?: string } | undefined;
+            if (!loc?.latitude || !loc?.longitude) return null;
+            const mapUrl = `https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`;
+            return (
+              <div className="mt-4 p-3 bg-base-200 rounded-lg">
+                <h3 className="text-sm font-medium mb-2 flex items-center gap-1"><MapPin size={14} /> 最近定位</h3>
+                <div className="text-sm space-y-1">
+                  <div>緯度: {loc.latitude}</div>
+                  <div>經度: {loc.longitude}</div>
+                  {loc.updated_at && <div className="text-xs opacity-50">更新時間: {new Date(loc.updated_at).toLocaleString()}</div>}
+                  <a href={mapUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-xs gap-1 mt-1">
+                    <MapPin size={12} /> 在 Google Maps 開啟
+                  </a>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
       {/* Install Profile Modal */}

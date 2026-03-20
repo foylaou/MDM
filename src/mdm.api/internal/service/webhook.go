@@ -163,6 +163,28 @@ func (h *WebhookHandler) parseAndStoreResponse(udid, rawB64 string) {
 		updated = true
 	}
 
+	// --- DeviceLocation (Lost Mode location response) ---
+	if strings.Contains(xmlStr, "<key>Latitude</key>") && strings.Contains(xmlStr, "<key>Longitude</key>") {
+		lat := extractPlistRealValue(xmlStr, "Latitude")
+		lng := extractPlistRealValue(xmlStr, "Longitude")
+		device.Details["device_location"] = map[string]interface{}{
+			"latitude":   lat,
+			"longitude":  lng,
+			"updated_at": time.Now().Format(time.RFC3339),
+		}
+		updated = true
+		log.Printf("[webhook] device %s location: lat=%s lng=%s", udid, lat, lng)
+	}
+
+	// --- EnableLostMode / DisableLostMode ---
+	// Update is_lost_mode directly (Upsert doesn't cover this without details)
+	if strings.Contains(xmlStr, "<string>EnableLostMode</string>") {
+		h.setLostMode(udid, true)
+	}
+	if strings.Contains(xmlStr, "<string>DisableLostMode</string>") {
+		h.setLostMode(udid, false)
+	}
+
 	if !updated {
 		return
 	}
@@ -172,6 +194,14 @@ func (h *WebhookHandler) parseAndStoreResponse(udid, rawB64 string) {
 	} else {
 		log.Printf("[webhook] device %s stored: name=%s model=%s os=%s details_keys=%d",
 			udid, device.DeviceName, device.Model, device.OSVersion, len(device.Details))
+	}
+}
+
+func (h *WebhookHandler) setLostMode(udid string, enabled bool) {
+	if err := h.devices.SetLostMode(context.Background(), udid, enabled); err != nil {
+		log.Printf("[webhook] set lost mode %s=%v: %v", udid, enabled, err)
+	} else {
+		log.Printf("[webhook] device %s lost_mode=%v", udid, enabled)
 	}
 }
 
@@ -202,4 +232,20 @@ func extractPlistBool(xml, key string) bool {
 	// Skip whitespace
 	trimmed := strings.TrimSpace(after)
 	return strings.HasPrefix(trimmed, "<true")
+}
+
+// extractPlistRealValue finds <key>name</key><real>value</real> in plist XML.
+func extractPlistRealValue(xml, key string) string {
+	keyTag := "<key>" + key + "</key>"
+	pos := strings.Index(xml, keyTag)
+	if pos < 0 {
+		return ""
+	}
+	after := xml[pos+len(keyTag):]
+	sStart := strings.Index(after, "<real>")
+	sEnd := strings.Index(after, "</real>")
+	if sStart >= 0 && sEnd > sStart {
+		return after[sStart+6 : sEnd]
+	}
+	return ""
 }

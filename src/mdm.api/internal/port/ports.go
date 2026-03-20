@@ -21,6 +21,7 @@ type DeviceRepository interface {
 	Upsert(ctx context.Context, device *domain.Device) error
 	GetByUDID(ctx context.Context, udid string) (*domain.Device, error)
 	List(ctx context.Context, filter string, limit int, offset int) ([]*domain.Device, int, error)
+	SetLostMode(ctx context.Context, udid string, enabled bool) error
 }
 
 // AuditRepository persists audit logs.

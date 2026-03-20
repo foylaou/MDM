@@ -20,15 +20,16 @@ import (
 
 type CommandService struct {
 	mdmv1connect.UnimplementedCommandServiceHandler
-	mdm    port.MicroMDMClient
-	vpp    port.VPPClient
-	audit  port.AuditRepository
-	broker port.EventBroker
-	assets port.AssetRepository
+	mdm     port.MicroMDMClient
+	vpp     port.VPPClient
+	audit   port.AuditRepository
+	broker  port.EventBroker
+	assets  port.AssetRepository
+	devices port.DeviceRepository
 }
 
-func NewCommandService(mdm port.MicroMDMClient, vpp port.VPPClient, audit port.AuditRepository, broker port.EventBroker, assets port.AssetRepository) *CommandService {
-	return &CommandService{mdm: mdm, vpp: vpp, audit: audit, broker: broker, assets: assets}
+func NewCommandService(mdm port.MicroMDMClient, vpp port.VPPClient, audit port.AuditRepository, broker port.EventBroker, assets port.AssetRepository, devices port.DeviceRepository) *CommandService {
+	return &CommandService{mdm: mdm, vpp: vpp, audit: audit, broker: broker, assets: assets, devices: devices}
 }
 
 func (s *CommandService) requireRoleOrCustodian(ctx context.Context, udids []string) error {
@@ -340,7 +341,7 @@ func (s *CommandService) GetActivationLockBypass(ctx context.Context, req *conne
 
 func (s *CommandService) EnableLostMode(ctx context.Context, req *connect.Request[mdmv1.EnableLostModeRequest]) (*connect.Response[mdmv1.CommandResponse], error) {
 	s.auditAction(ctx, "enable_lost_mode", fmt.Sprint(req.Msg.Udids), req.Msg.Message)
-	return s.sendToAll(ctx, req.Msg.Udids, func(udid string) map[string]interface{} {
+	resp, err := s.sendToAll(ctx, req.Msg.Udids, func(udid string) map[string]interface{} {
 		p := map[string]interface{}{"udid": udid, "request_type": "EnableLostMode"}
 		if req.Msg.Message != "" {
 			p["message"] = req.Msg.Message
@@ -353,13 +354,25 @@ func (s *CommandService) EnableLostMode(ctx context.Context, req *connect.Reques
 		}
 		return p
 	})
+	if err == nil && s.devices != nil {
+		for _, udid := range req.Msg.Udids {
+			_ = s.devices.SetLostMode(ctx, udid, true)
+		}
+	}
+	return resp, err
 }
 
 func (s *CommandService) DisableLostMode(ctx context.Context, req *connect.Request[mdmv1.DisableLostModeRequest]) (*connect.Response[mdmv1.CommandResponse], error) {
 	s.auditAction(ctx, "disable_lost_mode", fmt.Sprint(req.Msg.Udids), "")
-	return s.sendToAll(ctx, req.Msg.Udids, func(udid string) map[string]interface{} {
+	resp, err := s.sendToAll(ctx, req.Msg.Udids, func(udid string) map[string]interface{} {
 		return map[string]interface{}{"udid": udid, "request_type": "DisableLostMode"}
 	})
+	if err == nil && s.devices != nil {
+		for _, udid := range req.Msg.Udids {
+			_ = s.devices.SetLostMode(ctx, udid, false)
+		}
+	}
+	return resp, err
 }
 
 func (s *CommandService) GetDeviceLocation(ctx context.Context, req *connect.Request[mdmv1.GetDeviceLocationRequest]) (*connect.Response[mdmv1.CommandResponse], error) {

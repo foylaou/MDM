@@ -3,6 +3,7 @@ import { useAuthStore } from "../stores/authStore";
 import { useTranslation } from "react-i18next";
 import { DevicePicker } from "../components/DevicePicker";
 import apiClient from "../lib/apiClient";
+import { useDialog } from "../components/DialogProvider";
 import * as XLSX from "xlsx";
 import {
   Check, X, RotateCcw, Play, UserPlus, Clock,
@@ -154,6 +155,7 @@ function downloadExcel(rows: Record<string, unknown>[], filename: string) {
 export function Rentals() {
   const { t } = useTranslation();
   const { user } = useAuthStore();
+  const dialog = useDialog();
   const [rentals, setRentals] = useState<Rental[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -216,8 +218,9 @@ export function Rentals() {
       setExpectedReturn("");
       setNotes("");
       loadRentals();
-    } catch (err) {
-      alert("建立失敗: " + (err instanceof Error ? err.message : ""));
+    } catch (err: unknown) {
+      const resp = (err as { response?: { data?: { error?: string; devices?: string[] } } })?.response?.data;
+      await dialog.error(resp?.error || (err instanceof Error ? err.message : "建立失敗"), resp?.devices || []);
     } finally { setCreating(false); }
   };
 
@@ -246,12 +249,12 @@ export function Rentals() {
       activate: "確認借出裝置（整批）？",
       reject: "拒絕此租借申請（整批）？",
     };
-    if (!confirm(labels[action] || `${action}?`)) return;
+    if (!(await dialog.confirm(labels[action] || `${action}?`))) return;
     try {
       await apiClient.post(`/api/rentals/${rentalId}/${action}`);
       loadRentals();
     } catch (err) {
-      alert("操作失敗: " + (err instanceof Error ? err.message : ""));
+      await dialog.error("操作失敗: " + (err instanceof Error ? err.message : ""));
     }
   };
 
@@ -265,7 +268,7 @@ export function Rentals() {
       setReturnRentalId(null);
       loadRentals();
     } catch (err) {
-      alert("歸還失敗: " + (err instanceof Error ? err.message : ""));
+      await dialog.error("歸還失敗: " + (err instanceof Error ? err.message : ""));
     }
   };
 
@@ -327,7 +330,7 @@ export function Rentals() {
   // Export + archive
   const handleExportAndArchive = async () => {
     if (selectedGroups.length === 0) {
-      alert("請先勾選要存查的記錄");
+      await dialog.alert("請先勾選要存查的記錄");
       return;
     }
     const rows = buildExcelRows(selectedGroups);
@@ -340,7 +343,7 @@ export function Rentals() {
       await apiClient.post("/api/rentals-archive", { ids: allIds });
       loadRentals();
     } catch (err) {
-      alert("標記存查失敗: " + (err instanceof Error ? err.message : ""));
+      await dialog.error("標記存查失敗: " + (err instanceof Error ? err.message : ""));
     }
   };
 

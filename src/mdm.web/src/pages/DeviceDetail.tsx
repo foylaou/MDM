@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { useAuthStore } from "../stores/authStore";
 import { useEventStore } from "../stores/eventStore";
 import { useTranslation } from "react-i18next";
+import { useDialog } from "../components/DialogProvider";
 import { ResponseViewer } from "../components/ResponseViewer";
 import {
   ArrowLeft, RefreshCw, Smartphone, Lock, RotateCcw, Power,
@@ -96,6 +97,7 @@ const actionCommands: ActionCmd[] = [
 
 export function DeviceDetail() {
   const { t } = useTranslation();
+  const dialog = useDialog();
   const { udid } = useParams<{ udid: string }>();
   const { clients, user: currentUser } = useAuthStore();
   const { trackCommand, events } = useEventStore();
@@ -194,7 +196,7 @@ export function DeviceDetail() {
       openAppUninstall();
       return;
     }
-    if (cmd.danger && !confirm(`確定要執行「${cmd.label}」嗎？此操作無法復原。`)) return;
+    if (cmd.danger && !(await dialog.confirm(`確定要執行「${cmd.label}」嗎？此操作無法復原。`))) return;
     setExecuting(cmd.method);
     setActionResult(null);
     try {

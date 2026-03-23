@@ -1,0 +1,1 @@
+ALTER TABLE assets ADD COLUMN IF NOT EXISTS asset_status TEXT NOT NULL DEFAULT 'available';

@@ -34,3 +34,6 @@ var Migration010SQL string
 
 //go:embed migrations/011_app_icon.up.sql
 var Migration011SQL string
+
+//go:embed migrations/012_asset_status.up.sql
+var Migration012SQL string

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { UserPlus, Trash2, Edit3, X, Save, ShieldCheck, ShieldOff } from "lucide-react";
 import apiClient from "../lib/apiClient";
 import { useAuthStore } from "../stores/authStore";
+import { useDialog } from "../components/DialogProvider";
 
 interface UserRow {
   id: string;
@@ -14,6 +15,7 @@ interface UserRow {
 
 export function Users() {
   const { t } = useTranslation();
+  const dialog = useDialog();
   const { clients } = useAuthStore();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,7 +45,7 @@ export function Users() {
       setForm({ username: "", password: "", role: "viewer", displayName: "" });
       loadUsers();
     } catch (err) {
-      alert(t("users.createFailed") + ": " + (err instanceof Error ? err.message : ""));
+      await dialog.error(t("users.createFailed") + ": " + (err instanceof Error ? err.message : ""));
     } finally { setSaving(false); }
   };
 
@@ -64,7 +66,7 @@ export function Users() {
       setEditingId(null);
       loadUsers();
     } catch (err) {
-      alert("更新失敗: " + (err instanceof Error ? err.message : ""));
+      await dialog.error("更新失敗: " + (err instanceof Error ? err.message : ""));
     } finally { setSaving(false); }
   };
 
@@ -72,15 +74,15 @@ export function Users() {
     try {
       await apiClient.put(`/api/users/${id}`, { is_active: !currentlyActive });
       loadUsers();
-    } catch { alert("操作失敗"); }
+    } catch { await dialog.error("操作失敗"); }
   };
 
   const handleDelete = async (id: string, username: string) => {
-    if (!confirm(t("users.deleteConfirm", { name: username }))) return;
+    if (!(await dialog.confirm(t("users.deleteConfirm", { name: username })))) return;
     try {
       await apiClient.delete(`/api/users/${id}`);
       loadUsers();
-    } catch (err) { alert(t("users.deleteFailed") + ": " + (err instanceof Error ? err.message : "")); }
+    } catch (err) { await dialog.error(t("users.deleteFailed") + ": " + (err instanceof Error ? err.message : "")); }
   };
 
   const roleBadge = (role: string) => {

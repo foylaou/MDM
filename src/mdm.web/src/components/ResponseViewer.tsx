@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { useDialog } from "./DialogProvider";
 import { parsePlist, base64ToUtf8 } from "../lib/plist";
 import {
   Smartphone, HardDrive, Wifi, Shield, Lock, Check, X, Trash2,
@@ -252,6 +253,7 @@ function AppListView({ apps, status }: { apps: any[]; status?: string }) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function ProfileListView({ profiles, status, onRemove }: { profiles: any[]; status?: string; onRemove?: (identifier: string) => void }) {
+  const dialog = useDialog();
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
@@ -280,8 +282,8 @@ function ProfileListView({ profiles, status, onRemove }: { profiles: any[]; stat
                 {onRemove && (
                   <td>
                     <button
-                      onClick={() => {
-                        if (confirm(`移除描述檔「${p.PayloadDisplayName || p.PayloadIdentifier}」？`)) {
+                      onClick={async () => {
+                        if (await dialog.confirm(`移除描述檔「${p.PayloadDisplayName || p.PayloadIdentifier}」？`)) {
                           onRemove(p.PayloadIdentifier);
                         }
                       }}

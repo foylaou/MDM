@@ -126,7 +126,7 @@ export function Devices() {
           <p className="text-sm text-base-content/60">{t("devices.count", { count: total })}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <label className="input input-bordered input-sm flex items-center gap-2">
+          <label className="input input-bordered input-sm flex items-center gap-2" data-tour="device-search">
             <Search size={14} className="opacity-50" />
             <input
               type="text"
@@ -208,7 +208,7 @@ export function Devices() {
       )}
 
       {/* Table */}
-      <div className="card bg-base-100 shadow">
+      <div className="card bg-base-100 shadow" data-tour="device-table">
         <div className="overflow-x-auto">
           <table className="table table-sm">
             <thead>

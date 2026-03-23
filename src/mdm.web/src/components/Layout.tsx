@@ -5,6 +5,7 @@ import { useEventStream } from "../hooks/useEventStream";
 import { useTranslation } from "react-i18next";
 import { CommandTracker } from "./CommandTracker";
 import { ChangePassword } from "./ChangePassword";
+import { ViewerOnboarding } from "./ViewerOnboarding";
 import {
   LayoutDashboard, Tablet, Terminal, Radio, Users, ClipboardList, FileText, Package, Repeat, FolderTree,
   LogOut, Menu, Moon, Sun, Globe, Bell, Wifi, WifiOff, Lock,
@@ -129,7 +130,7 @@ export function Layout() {
                 </div>
               </Link>
             </div>
-            <ul className="menu menu-md p-4 flex-1 gap-1">
+            <ul className="menu menu-md p-4 flex-1 gap-1" data-tour="nav-sidebar">
               {filteredNav.map((item) => (
                 <li key={item.path}>
                   <Link to={item.path} className={location.pathname === item.path ? "active" : ""}>
@@ -144,6 +145,7 @@ export function Layout() {
       </div>
       <CommandTracker open={showTracker} onClose={() => setShowTracker(false)} />
       <ChangePassword open={showChangePw} onClose={() => setShowChangePw(false)} />
+      <ViewerOnboarding />
     </>
   );
 }

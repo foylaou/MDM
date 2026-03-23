@@ -67,7 +67,7 @@ export function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4" data-tour="stats-cards">
         <div className="stat bg-base-100 rounded-box shadow">
           <div className="stat-figure text-primary"><Tablet size={28} /></div>
           <div className="stat-title">{t("dashboard.totalDevices")}</div>
@@ -180,7 +180,7 @@ export function Dashboard() {
       <div className="card bg-base-100 shadow">
         <div className="card-body">
           <h2 className="card-title text-base">{t("dashboard.quickActions")}</h2>
-          <div className="flex flex-wrap gap-3 mt-2">
+          <div className="flex flex-wrap gap-3 mt-2" data-tour="quick-actions">
             <Link to="/devices" className="btn btn-outline btn-sm gap-2"><Tablet size={16} />{t("dashboard.viewDevices")}</Link>
             <Link to="/commands" className="btn btn-outline btn-sm gap-2"><Terminal size={16} />{t("dashboard.sendCommand")}</Link>
             <Link to="/events" className="btn btn-outline btn-sm gap-2"><Radio size={16} />{t("dashboard.monitorEvents")}</Link>

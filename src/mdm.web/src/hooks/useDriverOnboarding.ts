@@ -108,38 +108,34 @@ export function useDriverOnboarding(stepDefs: StepDef[], opts: UseDriverOnboardi
         }));
 
         const startedAt = Date.now();
+        const markSeen = () => {
+            const shown = Date.now() - startedAt;
+            if (shown > minShownMs) setSeen();
+            else initRef.current = false;
+        };
+
         const drv = driver({
             showProgress: true,
             nextBtnText: i18n.next,
             prevBtnText: i18n.prev,
-            // 如果有跨頁，把「完成」文字改成「下一頁」
             doneBtnText: chainNext ? '下一頁' : i18n.done,
             steps: driverSteps,
-
-            // 自訂按鈕行為：最後一步 → 導頁；否則照常下一步
+            onDestroyed: markSeen,
             onNextClick: () => {
                 if (chainNext && drv.isLastStep()) {
                     try {
                         sessionStorage.setItem(NEXT_KEY, JSON.stringify({ to: chainNext, force: !!forceChain }));
                     } catch {}
-                    drv.destroy();                         // 關閉導覽
-                    window.location.assign(chainNext);     // 換頁
+                    drv.destroy();
+                    window.location.assign(chainNext);
                 } else {
-                    drv.moveNext();                        // 照常下一步
+                    drv.moveNext();
                 }
             },
             onPrevClick: () => drv.movePrevious(),
-            // onCloseClick: () => drv.destroy(),     // 需要時可覆寫 close 行為
         });
 
         try { drv.drive(); } catch { return; }
-
-        const onDestroyed = () => {
-            const shown = Date.now() - startedAt;
-            if (shown > minShownMs) setSeen();
-            else initRef.current = false;
-        };
-        window.addEventListener('driver:destroyed', onDestroyed, { once: true });
     }, [guardedSteps, chainNext, i18n.next, i18n.prev, i18n.done, minShownMs, setSeen, forceChain]);
 
     // Dev 工具

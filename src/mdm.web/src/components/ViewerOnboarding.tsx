@@ -1,13 +1,10 @@
 import { useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import { useDriverOnboarding, type Role, type OnboardingContext } from '../hooks/useDriverOnboarding';
+import { useDriverOnboarding, type Role, type OnboardingContext, type StepDef } from '../hooks/useDriverOnboarding';
 import { tourStepsByScope } from '../tours/viewerTours';
 import { HelpCircle } from 'lucide-react';
 
-const EMPTY_STEPS: [] = [];
-
 function resolveScope(pathname: string): string {
-  // /devices/:udid → device-detail
   if (/^\/devices\/.+/.test(pathname)) return 'device-detail';
   return pathname.replace('/', '') || 'dashboard';
 }
@@ -17,7 +14,9 @@ export function ViewerOnboarding() {
   const { pathname } = useLocation();
 
   const scope = resolveScope(pathname);
-  const steps = tourStepsByScope[scope] || EMPTY_STEPS;
+  const steps = tourStepsByScope[scope];
+
+  if (!steps?.length || user?.role !== 'viewer') return null;
 
   const ctx: OnboardingContext = {
     role: (user?.role as Role) || null,
@@ -25,6 +24,11 @@ export function ViewerOnboarding() {
     pathname,
   };
 
+  // key={scope} forces remount on page change, so the tour auto-starts per page
+  return <TourRunner key={scope} steps={steps} ctx={ctx} scope={scope} />;
+}
+
+function TourRunner({ steps, ctx, scope }: { steps: StepDef[]; ctx: OnboardingContext; scope: string }) {
   const { start, resetSeen } = useDriverOnboarding(steps, {
     ctx,
     scope,
@@ -37,8 +41,6 @@ export function ViewerOnboarding() {
     resetSeen();
     setTimeout(() => start(true), 100);
   };
-
-  if (!steps.length || user?.role !== 'viewer') return null;
 
   return (
     <div className="tooltip tooltip-left" data-tip="操作導覽">

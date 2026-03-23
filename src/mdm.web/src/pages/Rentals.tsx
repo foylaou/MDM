@@ -355,7 +355,7 @@ export function Rentals() {
           <p className="text-sm text-base-content/60">裝置借出、歸還與追蹤</p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="select select-bordered select-sm">
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="select select-bordered select-sm" data-tour="rental-filter">
             <option value="">全部狀態</option>
             <option value="pending">待核准</option>
             <option value="approved">已核准</option>
@@ -372,7 +372,7 @@ export function Rentals() {
             />
             顯示存查
           </label>
-          <button onClick={() => setShowCreate(true)} className="btn btn-primary btn-sm gap-1">
+          <button onClick={() => setShowCreate(true)} className="btn btn-primary btn-sm gap-1" data-tour="rental-create">
             <UserPlus size={14} /> 新增租借
           </button>
         </div>
@@ -428,7 +428,7 @@ export function Rentals() {
       )}
 
       {/* Workflow */}
-      <div className="flex items-center gap-2 text-xs text-base-content/50 px-1">
+      <div className="flex items-center gap-2 text-xs text-base-content/50 px-1" data-tour="rental-workflow">
         <span className="badge badge-warning badge-xs">待核准</span>
         <span className="text-base-content/30">保管人或管理員核准</span>
         <ArrowRight size={12} />
@@ -459,7 +459,7 @@ export function Rentals() {
       )}
 
       {/* Table */}
-      <div className="card bg-base-100 shadow">
+      <div className="card bg-base-100 shadow" data-tour="rental-table">
         <div className="overflow-x-auto">
           <table className="table table-sm">
             <thead>

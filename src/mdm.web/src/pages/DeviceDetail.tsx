@@ -437,7 +437,7 @@ export function DeviceDetail() {
       </div>
 
       {/* Tabs */}
-      <div className="card bg-base-100 shadow">
+      <div className="card bg-base-100 shadow" data-tour="device-tabs">
         <div className="border-b border-base-300">
           <div role="tablist" className="tabs tabs-bordered px-4">
             {tabs.map((tab) => {
@@ -521,7 +521,7 @@ export function DeviceDetail() {
       </div>
 
       {/* Action commands */}
-      <div className="card bg-base-100 shadow">
+      <div className="card bg-base-100 shadow" data-tour="device-actions">
         <div className="card-body p-4">
           <h2 className="card-title text-base mb-2">裝置操作</h2>
           <div className="flex flex-wrap gap-2">

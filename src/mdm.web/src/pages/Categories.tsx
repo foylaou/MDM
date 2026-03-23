@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import apiClient from "../lib/apiClient";
+import { useDialog } from "../components/DialogProvider";
 import { Plus, Trash2, Edit3, Save, X, ChevronRight, FolderTree } from "lucide-react";
 
 interface Category {
@@ -13,6 +14,7 @@ interface Category {
 
 export function Categories() {
   const { t } = useTranslation();
+  const dialog = useDialog();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -48,7 +50,7 @@ export function Categories() {
       setAddParentId(null);
       setAddName("");
       load();
-    } catch (err) { alert("新增失敗"); }
+    } catch (err) { await dialog.error("新增失敗"); }
     finally { setSaving(false); }
   };
 
@@ -59,7 +61,7 @@ export function Categories() {
       await apiClient.put(`/api/categories/${editingId}`, { name: editName.trim() });
       setEditingId(null);
       load();
-    } catch (err) { alert("更新失敗"); }
+    } catch (err) { await dialog.error("更新失敗"); }
     finally { setSaving(false); }
   };
 
@@ -68,11 +70,11 @@ export function Categories() {
     const msg = children.length > 0
       ? `刪除「${name}」及其 ${children.length} 個子分類？`
       : `刪除「${name}」？`;
-    if (!confirm(msg)) return;
+    if (!(await dialog.confirm(msg))) return;
     try {
       await apiClient.delete(`/api/categories/${id}`);
       load();
-    } catch { alert("刪除失敗"); }
+    } catch { await dialog.error("刪除失敗"); }
   };
 
   const renderCategory = (cat: Category, depth: number = 0) => {

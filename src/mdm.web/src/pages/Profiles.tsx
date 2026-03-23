@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuthStore } from "../stores/authStore";
 import { useTranslation } from "react-i18next";
+import { useDialog } from "../components/DialogProvider";
 import { Upload, Trash2, FileText, RefreshCw } from "lucide-react";
 
 interface Profile {
@@ -20,6 +21,7 @@ function formatSize(bytes: number) {
 
 export function Profiles() {
   const { t } = useTranslation();
+  const dialog = useDialog();
   useAuthStore(); // ensure authenticated
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,7 +53,7 @@ export function Profiles() {
     if (!file) return;
 
     if (!file.name.endsWith(".mobileconfig")) {
-      alert("請選擇 .mobileconfig 檔案");
+      await dialog.alert("請選擇 .mobileconfig 檔案");
       if (fileRef.current) fileRef.current.value = "";
       return;
     }
@@ -77,14 +79,14 @@ export function Profiles() {
       if (fileRef.current) fileRef.current.value = "";
       loadProfiles();
     } catch (err) {
-      alert(t("profiles.uploadFailed") + ": " + (err instanceof Error ? err.message : ""));
+      await dialog.error(t("profiles.uploadFailed") + ": " + (err instanceof Error ? err.message : ""));
     } finally {
       setUploading(false);
     }
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(t("profiles.deleteConfirm", { name }))) return;
+    if (!(await dialog.confirm(t("profiles.deleteConfirm", { name })))) return;
     try {
       const resp = await fetch(`${baseUrl}/api/profiles/${id}`, {
         method: "DELETE",
@@ -93,7 +95,7 @@ export function Profiles() {
       if (!resp.ok) throw new Error("delete failed");
       loadProfiles();
     } catch (err) {
-      alert(t("profiles.deleteFailed") + ": " + (err instanceof Error ? err.message : ""));
+      await dialog.error(t("profiles.deleteFailed") + ": " + (err instanceof Error ? err.message : ""));
     }
   };
 

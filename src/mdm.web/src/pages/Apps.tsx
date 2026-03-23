@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuthStore } from "../stores/authStore";
 import { useTranslation } from "react-i18next";
+import { useDialog } from "../components/DialogProvider";
 import apiClient from "../lib/apiClient";
 import {
-  Package, Plus, Pencil, Trash2, Save, Building2, Download, Search,
+  Package, Plus, Pencil, Trash2, Save, Building2, Download, Search, RefreshCw,
 } from "lucide-react";
 
 interface ManagedApp {
@@ -34,11 +35,13 @@ const emptyForm = {
 
 export function Apps() {
   const { t } = useTranslation();
+  const dialog = useDialog();
   const { user } = useAuthStore();
   const userRole = user?.role || "viewer";
 
   const [apps, setApps] = useState<ManagedApp[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -183,19 +186,33 @@ export function Apps() {
       loadApps();
     } catch (err) {
       console.error("Save app:", err);
-      alert("儲存失敗");
+      await dialog.error("儲存失敗");
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (app: ManagedApp) => {
-    if (!confirm(`確定要刪除「${app.name}」嗎？已安裝的裝置記錄也會一併刪除。`)) return;
+    if (!(await dialog.confirm(`確定要刪除「${app.name}」嗎？已安裝的裝置記錄也會一併刪除。`))) return;
     try {
       await apiClient.delete(`/api/managed-apps/${app.id}`);
       loadApps();
     } catch (err) {
       console.error("Delete app:", err);
+    }
+  };
+
+  const handleSyncDeviceApps = async () => {
+    setSyncing(true);
+    try {
+      const { data } = await apiClient.post("/api/sync-device-apps");
+      await dialog.success(`同步完成，新增 ${data.synced} 筆安裝記錄`);
+      loadApps();
+    } catch (err) {
+      console.error("Sync device apps:", err);
+      await dialog.error("同步失敗");
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -208,11 +225,17 @@ export function Apps() {
           <h1 className="text-2xl font-bold">{t("nav.apps") || "App 管理"}</h1>
           <p className="text-sm text-base-content/60">登記可安裝的 App，管理採購數量與安裝狀態</p>
         </div>
-        {canEdit && (
-          <button onClick={openCreate} className="btn btn-primary gap-1">
-            <Plus size={16} /> 新增 App
+        <div className="flex gap-2">
+          <button onClick={handleSyncDeviceApps} disabled={syncing} className="btn btn-outline gap-1">
+            <RefreshCw size={16} className={syncing ? "animate-spin" : ""} />
+            {syncing ? "同步中..." : "同步已安裝"}
           </button>
-        )}
+          {canEdit && (
+            <button onClick={openCreate} className="btn btn-primary gap-1">
+              <Plus size={16} /> 新增 App
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="card bg-base-100 shadow">

@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useAuthStore } from "../stores/authStore";
 import { useEventStore } from "../stores/eventStore";
 import { useTranslation } from "react-i18next";
+import { useDialog } from "../components/DialogProvider";
 import { DevicePicker } from "../components/DevicePicker";
 import { ProfilePicker } from "../components/ProfilePicker";
 import { AppPicker } from "../components/AppPicker";
@@ -63,6 +64,7 @@ const categories = [...new Set(COMMANDS.map((c) => c.category))];
 
 export function Commands() {
   const { t } = useTranslation();
+  const dialog = useDialog();
   const { clients } = useAuthStore();
   const { trackCommand } = useEventStore();
   const [searchParams] = useSearchParams();
@@ -87,7 +89,7 @@ export function Commands() {
 
   const handleExecute = async () => {
     if (!clients || selectedUdids.length === 0) {
-      alert(t("commands.enterUdid"));
+      await dialog.alert(t("commands.enterUdid"));
       return;
     }
     if (selectedCmd.danger) { setShowConfirm(true); return; }

@@ -1,36 +1,52 @@
 import { useState, useEffect, useMemo } from "react";
-import { useAuthStore } from "../stores/authStore";
 import { useTranslation } from "react-i18next";
 import { Search, X, Tablet, Check, Hash } from "lucide-react";
 import apiClient from "../lib/apiClient";
-import type { Device } from "../gen/mdm/v1/device_pb";
 
 interface CategoryOption { id: string; name: string; level: number; }
+
+interface DeviceItem {
+  udid: string;
+  serial_number: string;
+  device_name: string;
+  model: string;
+  os_version: string;
+  enrollment_status: string;
+  asset_status: string;
+}
 
 interface DevicePickerProps {
   selected: string[];
   onChange: (udids: string[]) => void;
-  showFilters?: boolean; // show category + rental status filters
+  showFilters?: boolean;
 }
+
+const statusConfig: Record<string, { label: string; color: string }> = {
+  available:  { label: "可用",   color: "badge-success" },
+  rented:     { label: "借出",   color: "badge-warning" },
+  broken:     { label: "故障",   color: "badge-error" },
+  repairing:  { label: "維修中", color: "badge-info" },
+  lost:       { label: "遺失",   color: "badge-error" },
+  retired:    { label: "報廢",   color: "badge-ghost" },
+};
 
 export function DevicePicker({ selected, onChange, showFilters }: DevicePickerProps) {
   const { t } = useTranslation();
-  const { clients } = useAuthStore();
-  const [devices, setDevices] = useState<Device[]>([]);
+  const [devices, setDevices] = useState<DeviceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState(showFilters ? "available" : "");
   const [quickQty, setQuickQty] = useState("");
 
   useEffect(() => {
-    if (!clients) return;
     setLoading(true);
-    clients.device.listDevices({ pageSize: 200 })
-      .then((resp) => setDevices(resp.devices))
+    apiClient.get("/api/devices-available")
+      .then(({ data }) => setDevices(data.devices || []))
       .catch((err) => console.error("DevicePicker load:", err))
       .finally(() => setLoading(false));
-  }, [clients]);
+  }, []);
 
   useEffect(() => {
     if (showFilters) {
@@ -44,14 +60,17 @@ export function DevicePicker({ selected, onChange, showFilters }: DevicePickerPr
       const q = search.toLowerCase();
       result = result.filter(
         (d) =>
-          d.deviceName.toLowerCase().includes(q) ||
-          d.serialNumber.toLowerCase().includes(q) ||
+          d.device_name.toLowerCase().includes(q) ||
+          d.serial_number.toLowerCase().includes(q) ||
           d.udid.toLowerCase().includes(q) ||
           d.model.toLowerCase().includes(q)
       );
     }
+    if (statusFilter) {
+      result = result.filter((d) => d.asset_status === statusFilter);
+    }
     return result;
-  }, [devices, search]);
+  }, [devices, search, statusFilter]);
 
   const selectedSet = useMemo(() => new Set(selected), [selected]);
 
@@ -76,7 +95,6 @@ export function DevicePicker({ selected, onChange, showFilters }: DevicePickerPr
 
   const clearAll = () => onChange([]);
 
-  // Quick quantity: select N random unselected devices
   const handleQuickQty = () => {
     const qty = parseInt(quickQty);
     if (isNaN(qty) || qty <= 0) return;
@@ -88,6 +106,15 @@ export function DevicePicker({ selected, onChange, showFilters }: DevicePickerPr
 
   const selectedDevices = devices.filter((d) => selectedSet.has(d.udid));
 
+  // Count by status for filter badges
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const d of devices) {
+      counts[d.asset_status] = (counts[d.asset_status] || 0) + 1;
+    }
+    return counts;
+  }, [devices]);
+
   return (
     <div className="space-y-3">
       {/* Selected tags */}
@@ -95,7 +122,7 @@ export function DevicePicker({ selected, onChange, showFilters }: DevicePickerPr
         <div className="flex flex-wrap gap-1.5">
           {selectedDevices.map((d) => (
             <span key={d.udid} className="badge badge-primary gap-1">
-              {d.deviceName || d.serialNumber}
+              {d.device_name || d.serial_number}
               <button onClick={() => toggle(d.udid)} className="hover:opacity-70"><X size={12} /></button>
             </span>
           ))}
@@ -105,7 +132,7 @@ export function DevicePicker({ selected, onChange, showFilters }: DevicePickerPr
         </div>
       )}
 
-      {/* Search + quick qty + filters */}
+      {/* Search + quick qty */}
       <div className="flex gap-2 flex-wrap">
         <label className="input input-bordered input-sm flex items-center gap-2 flex-1 min-w-48">
           <Search size={14} className="opacity-50" />
@@ -128,14 +155,41 @@ export function DevicePicker({ selected, onChange, showFilters }: DevicePickerPr
         <button onClick={selectAll} className="btn btn-ghost btn-sm">{t("devicePicker.selectAll")}</button>
       </div>
 
-      {/* Category filter */}
-      {showFilters && categories.length > 0 && (
-        <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="select select-bordered select-sm w-full">
-          <option value="">全部分類</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>{"　".repeat(c.level)}{c.name}</option>
-          ))}
-        </select>
+      {/* Status filter pills + Category */}
+      {showFilters && (
+        <div className="space-y-2">
+          <div className="flex gap-1 flex-wrap">
+            <button
+              onClick={() => setStatusFilter("")}
+              className={`btn btn-xs gap-1 ${statusFilter === "" ? "btn-neutral" : "btn-ghost"}`}
+            >
+              全部 <span className="badge badge-xs">{devices.length}</span>
+            </button>
+            {Object.entries(statusConfig).map(([key, cfg]) => {
+              const count = statusCounts[key] || 0;
+              if (count === 0 && key !== "available") return null;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setStatusFilter(statusFilter === key ? "" : key)}
+                  className={`btn btn-xs gap-1 ${statusFilter === key ? "btn-neutral" : "btn-ghost"}`}
+                >
+                  <span className={`badge badge-xs ${cfg.color}`}></span>
+                  {cfg.label}
+                  <span className="badge badge-xs">{count}</span>
+                </button>
+              );
+            })}
+          </div>
+          {categories.length > 0 && (
+            <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="select select-bordered select-sm w-full">
+              <option value="">全部分類</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>{"　".repeat(c.level)}{c.name}</option>
+              ))}
+            </select>
+          )}
+        </div>
       )}
 
       {/* Summary */}
@@ -158,6 +212,7 @@ export function DevicePicker({ selected, onChange, showFilters }: DevicePickerPr
           <ul className="divide-y divide-base-200">
             {filtered.map((d) => {
               const isSelected = selectedSet.has(d.udid);
+              const sc = statusConfig[d.asset_status] || statusConfig.available;
               return (
                 <li
                   key={d.udid}
@@ -169,13 +224,13 @@ export function DevicePicker({ selected, onChange, showFilters }: DevicePickerPr
                   </div>
                   <Tablet size={16} className="opacity-40 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate">{d.deviceName || d.serialNumber || d.udid}</div>
+                    <div className="text-sm font-medium truncate">{d.device_name || d.serial_number || d.udid}</div>
                     <div className="text-xs opacity-50 truncate">
-                      {d.serialNumber} {d.model ? `· ${d.model}` : ""} {d.osVersion ? `· ${d.osVersion}` : ""}
+                      {d.serial_number} {d.model ? `· ${d.model}` : ""} {d.os_version ? `· ${d.os_version}` : ""}
                     </div>
                   </div>
-                  <span className={`badge badge-xs flex-shrink-0 ${d.enrollmentStatus === "enrolled" ? "badge-success" : "badge-ghost"}`}>
-                    {d.enrollmentStatus}
+                  <span className={`badge badge-xs flex-shrink-0 ${sc.color}`}>
+                    {sc.label}
                   </span>
                 </li>
               );

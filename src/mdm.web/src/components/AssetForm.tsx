@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, Save, Trash2, Edit3, X } from "lucide-react";
 import apiClient from "../lib/apiClient";
+import { useDialog } from "./DialogProvider";
 import { CategoryPicker } from "./CategoryPicker";
 
 interface Asset {
@@ -23,6 +24,7 @@ interface Asset {
   notes: string;
   category_id: string | null;
   category_name: string;
+  asset_status: string;
 }
 
 interface UserOption {
@@ -38,7 +40,15 @@ const emptyAsset: Omit<Asset, "id"> = {
   borrow_date: null, custodian_id: null, custodian_name: "",
   location: "", asset_category: "", notes: "",
   category_id: null, category_name: "",
+  asset_status: "available",
 };
+
+const ASSET_STATUS_OPTIONS = [
+  { value: "available",  label: "可用",   badge: "badge-success" },
+  { value: "faulty",     label: "故障",   badge: "badge-error" },
+  { value: "repairing",  label: "維修中", badge: "badge-info" },
+  { value: "retired",    label: "報廢",   badge: "badge-ghost" },
+];
 
 interface AssetFormProps {
   deviceUdid: string;
@@ -46,12 +56,14 @@ interface AssetFormProps {
 
 export function AssetForm({ deviceUdid }: AssetFormProps) {
   const { t } = useTranslation();
+  const dialog = useDialog();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<string | null>(null);
   const [form, setForm] = useState(emptyAsset);
   const [saving, setSaving] = useState(false);
+  const [isRented, setIsRented] = useState(false);
 
   const loadAssets = async () => {
     setLoading(true);
@@ -69,7 +81,15 @@ export function AssetForm({ deviceUdid }: AssetFormProps) {
     } catch { /* */ }
   };
 
-  useEffect(() => { loadAssets(); loadUsers(); }, [deviceUdid]);
+  const checkRented = async () => {
+    try {
+      const { data } = await apiClient.get("/api/rentals", { params: { status: "active" } });
+      const rentals: { device_udid: string }[] = data.rentals || [];
+      setIsRented(rentals.some((r) => r.device_udid === deviceUdid));
+    } catch { /* */ }
+  };
+
+  useEffect(() => { loadAssets(); loadUsers(); checkRented(); }, [deviceUdid]);
 
   const startEdit = (asset?: Asset) => {
     if (asset) {
@@ -103,16 +123,16 @@ export function AssetForm({ deviceUdid }: AssetFormProps) {
       setEditing(null);
       loadAssets();
     } catch (err) {
-      alert("儲存失敗: " + (err instanceof Error ? err.message : ""));
+      await dialog.error("儲存失敗: " + (err instanceof Error ? err.message : ""));
     } finally { setSaving(false); }
   };
 
   const deleteAsset = async (id: string) => {
-    if (!confirm("確定要刪除此財產資訊？")) return;
+    if (!(await dialog.confirm("確定要刪除此財產資訊？"))) return;
     try {
       await apiClient.delete(`/api/assets/${id}`);
       loadAssets();
-    } catch { alert("刪除失敗"); }
+    } catch { await dialog.error("刪除失敗"); }
   };
 
   const updateField = (key: string, value: unknown) => {
@@ -164,6 +184,7 @@ export function AssetForm({ deviceUdid }: AssetFormProps) {
             <select
               value={form.custodian_id || ""}
               onChange={(e) => handleCustodianChange(e.target.value)}
+              disabled={isRented}
               className="select select-bordered select-sm"
             >
               <option value="">-- 無 --</option>
@@ -171,9 +192,23 @@ export function AssetForm({ deviceUdid }: AssetFormProps) {
                 <option key={u.id} value={u.id}>{u.display_name || u.username}</option>
               ))}
             </select>
+            {isRented && <label className="label py-0"><span className="label-text-alt text-warning">借出中，歸還後才可變更保管人</span></label>}
+          </div>
+          {/* Asset status */}
+          <div className="form-control">
+            <label className="label py-1"><span className="label-text text-xs">裝置狀態</span></label>
+            <select
+              value={form.asset_status || "available"}
+              onChange={(e) => updateField("asset_status", e.target.value)}
+              className="select select-bordered select-sm"
+            >
+              {ASSET_STATUS_OPTIONS.map((s) => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
           </div>
           {/* Category — cascading picker */}
-          <div className="form-control sm:col-span-2">
+          <div className="form-control">
             <label className="label py-1"><span className="label-text text-xs">裝置分類</span></label>
             <CategoryPicker
               value={form.category_id}
@@ -215,6 +250,15 @@ export function AssetForm({ deviceUdid }: AssetFormProps) {
         <div key={asset.id} className="border border-base-300 rounded-lg p-3">
           <div className="flex items-start justify-between">
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-1 text-sm flex-1">
+              {(() => {
+                const st = ASSET_STATUS_OPTIONS.find((s) => s.value === asset.asset_status) || ASSET_STATUS_OPTIONS[0];
+                return (
+                  <div>
+                    <span className="text-base-content/50">裝置狀態：</span>
+                    <span className={`badge badge-sm ${st.badge}`}>{st.label}</span>
+                  </div>
+                );
+              })()}
               {[
                 [t("assets.assetNumber"), asset.asset_number],
                 [t("assets.name"), asset.name],

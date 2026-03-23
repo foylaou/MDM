@@ -375,7 +375,9 @@ func main() {
 		             d.last_seen, d.enrollment_status, d.is_supervised, d.is_lost_mode, d.battery_level,
 		             COALESCE(a.custodian_name,'') as custodian_name,
 		             COALESCE(c.name,'') as category_name,
-		             a.category_id, a.custodian_id
+		             a.category_id, a.custodian_id,
+		             COALESCE(a.asset_status,'available') as asset_status,
+		             EXISTS(SELECT 1 FROM rentals rl WHERE rl.device_udid = d.udid AND rl.status = 'active') as is_rented
 		      FROM devices d
 		      LEFT JOIN assets a ON a.device_udid = d.udid
 		      LEFT JOIN categories c ON a.category_id = c.id
@@ -433,18 +435,30 @@ func main() {
 			CategoryName     string  `json:"category_name"`
 			CategoryID       *string `json:"category_id"`
 			CustodianID      *string `json:"custodian_id"`
+			AssetStatus      string  `json:"asset_status"`
 		}
 		var devices []deviceRow
 		for rows.Next() {
 			var d deviceRow
 			var lastSeen time.Time
+			var assetStatus string
+			var isRented bool
 			if err := rows.Scan(&d.UDID, &d.SerialNumber, &d.DeviceName, &d.Model, &d.OSVersion,
 				&lastSeen, &d.EnrollmentStatus, &d.IsSupervised, &d.IsLostMode, &d.BatteryLevel,
-				&d.CustodianName, &d.CategoryName, &d.CategoryID, &d.CustodianID); err != nil {
+				&d.CustodianName, &d.CategoryName, &d.CategoryID, &d.CustodianID,
+				&assetStatus, &isRented); err != nil {
 				log.Printf("devices-list scan: %v", err)
 				continue
 			}
 			d.LastSeen = lastSeen.Format(time.RFC3339)
+			// Compute effective status: auto-detect rented/lost, otherwise use manual status
+			if isRented {
+				d.AssetStatus = "rented"
+			} else if d.IsLostMode {
+				d.AssetStatus = "lost"
+			} else {
+				d.AssetStatus = assetStatus
+			}
 			devices = append(devices, d)
 		}
 		if devices == nil {
@@ -452,6 +466,100 @@ func main() {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{"devices": devices, "total": len(devices)})
+	})
+
+	// All devices for rental picker (no viewer restriction)
+	mux.HandleFunc("/api/devices-available", func(w http.ResponseWriter, r *http.Request) {
+		if _, err := middleware.ExtractTokenFromRequest(r, cfg.JWTSecret); err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		if r.Method != http.MethodGet {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		q := `SELECT d.udid, d.serial_number, d.device_name, d.model, d.os_version,
+		             d.enrollment_status,
+		             COALESCE(a.asset_status,'available') as asset_status,
+		             EXISTS(SELECT 1 FROM rentals rl WHERE rl.device_udid = d.udid AND rl.status = 'active') as is_rented
+		      FROM devices d
+		      LEFT JOIN assets a ON a.device_udid = d.udid
+		      ORDER BY d.device_name`
+		rows, err := pool.Query(r.Context(), q)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Printf("devices-available: %v", err)
+			return
+		}
+		defer rows.Close()
+
+		type deviceRow struct {
+			UDID             string `json:"udid"`
+			SerialNumber     string `json:"serial_number"`
+			DeviceName       string `json:"device_name"`
+			Model            string `json:"model"`
+			OSVersion        string `json:"os_version"`
+			EnrollmentStatus string `json:"enrollment_status"`
+			AssetStatus      string `json:"asset_status"`
+		}
+		var devices []deviceRow
+		for rows.Next() {
+			var d deviceRow
+			var assetStatus string
+			var isRented bool
+			if err := rows.Scan(&d.UDID, &d.SerialNumber, &d.DeviceName, &d.Model, &d.OSVersion,
+				&d.EnrollmentStatus, &assetStatus, &isRented); err != nil {
+				log.Printf("devices-available scan: %v", err)
+				continue
+			}
+			if isRented {
+				d.AssetStatus = "rented"
+			} else {
+				d.AssetStatus = assetStatus
+			}
+			devices = append(devices, d)
+		}
+		if devices == nil {
+			devices = []deviceRow{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"devices": devices})
+	})
+
+	// Update device asset_status by UDID
+	mux.HandleFunc("/api/device-status", func(w http.ResponseWriter, r *http.Request) {
+		if _, err := middleware.ExtractTokenFromRequest(r, cfg.JWTSecret); err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		if r.Method != http.MethodPut {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		var body struct {
+			UDID   string `json:"udid"`
+			Status string `json:"status"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.UDID == "" || body.Status == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error":"udid and status required"}`))
+			return
+		}
+		valid := map[string]bool{"available": true, "faulty": true, "repairing": true, "retired": true}
+		if !valid[body.Status] {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "invalid status"})
+			return
+		}
+		_, err := pool.Exec(r.Context(),
+			`UPDATE assets SET asset_status=$1, updated_at=now() WHERE device_udid=$2`, body.Status, body.UDID)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+		w.Write([]byte(`{"ok":true}`))
 	})
 
 	// Batch sync device info — send DeviceInformation to all devices
@@ -509,7 +617,8 @@ func main() {
 			             a.custodian_id, a.custodian_name, a.location, a.asset_category, a.notes,
 			             a.created_at, a.updated_at,
 			             COALESCE(d.device_name,'') as device_name, COALESCE(d.serial_number,'') as device_serial,
-			             a.category_id, COALESCE(c.name,'') as category_name
+			             a.category_id, COALESCE(c.name,'') as category_name,
+			             COALESCE(a.asset_status,'available') as asset_status
 			      FROM assets a LEFT JOIN devices d ON a.device_udid = d.udid
 			      LEFT JOIN categories c ON a.category_id = c.id`
 			args := []interface{}{}
@@ -550,6 +659,7 @@ func main() {
 				DeviceSerial  string  `json:"device_serial"`
 				CategoryID    *string `json:"category_id"`
 				CategoryName  string  `json:"category_name"`
+				AssetStatus   string  `json:"asset_status"`
 			}
 			var assets []assetRow
 			for rows.Next() {
@@ -562,7 +672,7 @@ func main() {
 					&acquiredDate, &a.UnitPrice, &a.Purpose, &borrowDate,
 					&custodianID, &a.CustodianName, &a.Location, &a.AssetCategory, &a.Notes,
 					&createdAt, &updatedAt, &a.DeviceName, &a.DeviceSerial,
-					&a.CategoryID, &a.CategoryName); err != nil {
+					&a.CategoryID, &a.CategoryName, &a.AssetStatus); err != nil {
 					continue
 				}
 				if deviceUdidPtr != nil {
@@ -653,7 +763,7 @@ func main() {
 			}
 			allowed := []string{"device_udid", "asset_number", "name", "spec", "quantity", "unit",
 				"acquired_date", "unit_price", "purpose", "borrow_date",
-				"custodian_id", "custodian_name", "location", "asset_category", "notes", "category_id"}
+				"custodian_id", "custodian_name", "location", "asset_category", "notes", "category_id", "asset_status"}
 			sets := []string{}
 			args := []interface{}{}
 			idx := 1
@@ -1203,6 +1313,100 @@ func main() {
 		})
 	})
 
+	// Sync installed apps — match device installed_apps_raw against managed_apps by bundle_id
+	mux.HandleFunc("/api/sync-device-apps", func(w http.ResponseWriter, r *http.Request) {
+		claims, err := middleware.ExtractTokenFromRequest(r, cfg.JWTSecret)
+		if err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+
+		// 1. Load all managed apps bundle_id → id
+		maRows, err := pool.Query(r.Context(), `SELECT id, bundle_id FROM managed_apps`)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+		defer maRows.Close()
+		bundleMap := map[string]string{} // bundle_id → managed_app id
+		for maRows.Next() {
+			var id, bid string
+			if err := maRows.Scan(&id, &bid); err == nil && bid != "" {
+				bundleMap[bid] = id
+			}
+		}
+		if len(bundleMap) == 0 {
+			json.NewEncoder(w).Encode(map[string]interface{}{"ok": true, "synced": 0, "message": "no managed apps"})
+			return
+		}
+
+		// 2. Load all devices that have installed_apps_raw
+		devRows, err := pool.Query(r.Context(), `SELECT udid, details->'installed_apps_raw' FROM devices WHERE details ? 'installed_apps_raw'`)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+		defer devRows.Close()
+
+		synced := 0
+		for devRows.Next() {
+			var udid, rawB64 string
+			if err := devRows.Scan(&udid, &rawB64); err != nil {
+				continue
+			}
+			// rawB64 may be JSON-quoted string
+			rawB64 = strings.Trim(rawB64, `"`)
+			decoded, err := base64.StdEncoding.DecodeString(rawB64)
+			if err != nil {
+				continue
+			}
+			xmlStr := string(decoded)
+
+			// 3. Extract all Identifier values from InstalledApplicationList
+			remaining := xmlStr
+			for {
+				keyTag := "<key>Identifier</key>"
+				pos := strings.Index(remaining, keyTag)
+				if pos < 0 {
+					break
+				}
+				after := remaining[pos+len(keyTag):]
+				sStart := strings.Index(after, "<string>")
+				sEnd := strings.Index(after, "</string>")
+				if sStart < 0 || sEnd <= sStart {
+					remaining = after
+					continue
+				}
+				bundleID := after[sStart+8 : sEnd]
+				remaining = after[sEnd:]
+
+				// 4. If this bundle_id matches a managed app, create binding
+				if appID, ok := bundleMap[bundleID]; ok {
+					tag, err := pool.Exec(r.Context(),
+						`INSERT INTO device_apps (device_udid, app_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+						udid, appID)
+					if err == nil && tag.RowsAffected() > 0 {
+						synced++
+					}
+				}
+			}
+		}
+
+		_ = auditRepo.Create(r.Context(), &domain.AuditLog{
+			UserID: claims.UserID, Username: claims.Username,
+			Action: "sync_device_apps", Target: "", Detail: fmt.Sprintf("synced %d bindings", synced),
+		})
+
+		json.NewEncoder(w).Encode(map[string]interface{}{"ok": true, "synced": synced})
+	})
+
 	// User update API
 	mux.HandleFunc("/api/users/", func(w http.ResponseWriter, r *http.Request) {
 		claims, err := middleware.ExtractTokenFromRequest(r, cfg.JWTSecret)
@@ -1424,6 +1628,35 @@ func main() {
 			var borrowerName string
 			pool.QueryRow(r.Context(), `SELECT COALESCE(display_name, username) FROM users WHERE id=$1`, body.BorrowerID).Scan(&borrowerName)
 
+			// Check all devices are available (not rented, broken, repairing, lost, retired)
+			var unavailable []string
+			for _, udid := range body.DeviceUdids {
+				var assetStatus string
+				var isRented bool
+				var isLostMode bool
+				pool.QueryRow(r.Context(),
+					`SELECT COALESCE(a.asset_status,'available'),
+					        EXISTS(SELECT 1 FROM rentals rl WHERE rl.device_udid=$1 AND rl.status IN ('pending','approved','active')),
+					        d.is_lost_mode
+					 FROM devices d LEFT JOIN assets a ON a.device_udid=d.udid WHERE d.udid=$1`, udid,
+				).Scan(&assetStatus, &isRented, &isLostMode)
+				if isRented {
+					unavailable = append(unavailable, udid+" (借出中)")
+				} else if isLostMode {
+					unavailable = append(unavailable, udid+" (遺失)")
+				} else if assetStatus != "available" && assetStatus != "" {
+					unavailable = append(unavailable, udid+" ("+assetStatus+")")
+				}
+			}
+			if len(unavailable) > 0 {
+				w.WriteHeader(http.StatusConflict)
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"error":   "部分裝置目前無法借出",
+					"devices": unavailable,
+				})
+				return
+			}
+
 			// Get next rental_number for the batch (all devices share the same number)
 			var rentalNumber int
 			pool.QueryRow(r.Context(), `SELECT COALESCE(MAX(rental_number), 0) + 1 FROM rentals`).Scan(&rentalNumber)
@@ -1638,7 +1871,7 @@ func main() {
 		switch r.Method {
 		case http.MethodGet:
 			rows, err := pool.Query(r.Context(),
-				`SELECT id, parent_id, name, level, sort_order FROM categories ORDER BY level, sort_order, name`)
+				`SELECT id, parent_id, name, level, sort_order FROM categories ORDER BY sort_order, name`)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
@@ -1651,16 +1884,36 @@ func main() {
 				Level     int     `json:"level"`
 				SortOrder int     `json:"sort_order"`
 			}
-			var cats []cat
+			var allCats []cat
 			for rows.Next() {
 				var c cat
 				rows.Scan(&c.ID, &c.ParentID, &c.Name, &c.Level, &c.SortOrder)
-				cats = append(cats, c)
+				allCats = append(allCats, c)
 			}
-			if cats == nil {
-				cats = []cat{}
+			// Build tree-ordered flat list: parent then children recursively
+			var sorted []cat
+			var walk func(parentID *string)
+			walk = func(parentID *string) {
+				for _, c := range allCats {
+					match := false
+					if parentID == nil && c.ParentID == nil {
+						match = true
+					} else if parentID == nil && c.ParentID != nil && *c.ParentID == "" {
+						match = true
+					} else if parentID != nil && c.ParentID != nil && *c.ParentID == *parentID {
+						match = true
+					}
+					if match {
+						sorted = append(sorted, c)
+						walk(&c.ID)
+					}
+				}
 			}
-			json.NewEncoder(w).Encode(map[string]interface{}{"categories": cats})
+			walk(nil)
+			if sorted == nil {
+				sorted = []cat{}
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{"categories": sorted})
 
 		case http.MethodPost:
 			var body struct {
@@ -1881,7 +2134,7 @@ func main() {
 
 func runMigrations(pool *pgxpool.Pool) {
 	ctx := context.Background()
-	for i, sql := range []string{db.MigrationSQL, db.Migration002SQL, db.Migration003SQL, db.Migration004SQL, db.Migration005SQL, db.Migration006SQL, db.Migration007SQL, db.Migration008SQL, db.Migration009SQL, db.Migration010SQL, db.Migration011SQL} {
+	for i, sql := range []string{db.MigrationSQL, db.Migration002SQL, db.Migration003SQL, db.Migration004SQL, db.Migration005SQL, db.Migration006SQL, db.Migration007SQL, db.Migration008SQL, db.Migration009SQL, db.Migration010SQL, db.Migration011SQL, db.Migration012SQL} {
 		if _, err := pool.Exec(ctx, sql); err != nil {
 			log.Printf("migration %d: %v (may already be applied)", i+1, err)
 		} else {

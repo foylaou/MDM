@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "./stores/authStore";
 import { Layout } from "./components/Layout";
 import { ToastContainer } from "./components/ToastContainer";
+import { DialogProvider } from "./components/DialogProvider";
 import { Login } from "./pages/Login";
 import { Setup } from "./pages/Setup";
 import { Dashboard } from "./pages/Dashboard";
@@ -94,7 +95,9 @@ function AppRoutes() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AppRoutes />
+      <DialogProvider>
+        <AppRoutes />
+      </DialogProvider>
     </BrowserRouter>
   );
 }

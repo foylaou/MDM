@@ -16,6 +16,7 @@ export interface DeviceRow {
   category_name: string;
   category_id: string | null;
   custodian_id: string | null;
+  asset_status: string;
 }
 
 interface DeviceFilters {

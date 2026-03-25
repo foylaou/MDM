@@ -120,6 +120,9 @@ export function DeviceDetail() {
   const [managedApps, setManagedApps] = useState<ManagedApp[]>([]);
   const [deviceApps, setDeviceApps] = useState<DeviceApp[]>([]);
   const [selectedAppId, setSelectedAppId] = useState("");
+  const [selectedInstallIds, setSelectedInstallIds] = useState<string[]>([]);
+  const [selectedUpdateIds, setSelectedUpdateIds] = useState<string[]>([]);
+  const [selectedUninstallIds, setSelectedUninstallIds] = useState<string[]>([]);
   const [appLoading, setAppLoading] = useState(false);
   const [showAppUpdate, setShowAppUpdate] = useState(false);
 
@@ -271,6 +274,7 @@ export function DeviceDetail() {
     } catch (err) { console.error("Load managed apps:", err); }
   }, []);
 
+
   const loadDeviceApps = useCallback(async () => {
     if (!udid) return;
     try {
@@ -279,38 +283,41 @@ export function DeviceDetail() {
     } catch (err) { console.error("Load device apps:", err); }
   }, [udid]);
 
+  useEffect(() => { if (activeTab === "apps") { loadManagedApps(); loadDeviceApps(); } }, [activeTab, loadManagedApps, loadDeviceApps]);
+
   const openAppInstall = async () => {
     await Promise.all([loadManagedApps(), loadDeviceApps()]);
-    setSelectedAppId("");
+    setSelectedInstallIds([]);
     setShowAppInstall(true);
   };
 
   const openAppUpdate = async () => {
     await Promise.all([loadManagedApps(), loadDeviceApps()]);
-    setSelectedAppId("");
+    setSelectedUpdateIds([]);
     setShowAppUpdate(true);
   };
 
   const openAppUninstall = async () => {
-    await loadDeviceApps();
-    setSelectedAppId("");
+    await Promise.all([loadManagedApps(), loadDeviceApps()]);
+    setSelectedUninstallIds([]);
     setShowAppUninstall(true);
   };
 
   const handleInstallApp = async () => {
-    if (!selectedAppId || !udid) return;
+    if (selectedInstallIds.length === 0 || !udid) return;
     setAppLoading(true);
     setActionResult(null);
     try {
-      const { data } = await apiClient.post("/api/device-apps/install", {
-        app_id: selectedAppId,
-        udid,
-      });
-      if (data.command_uuid) {
-        const app = managedApps.find((a) => a.id === selectedAppId);
-        trackCommand(`安裝 ${app?.name || "App"}`, [udid], data.command_uuid);
+      for (const appId of selectedInstallIds) {
+        const { data } = await apiClient.post("/api/device-apps/install", {
+          app_id: appId,
+          udid,
+        });
+        if (data.command_uuid) {
+          const app = managedApps.find((a) => a.id === appId);
+          trackCommand(`安裝 ${app?.name || "App"}`, [udid], data.command_uuid);
+        }
       }
-      if (data.raw_response) setActionResult(data.raw_response);
       setShowAppInstall(false);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
@@ -320,19 +327,20 @@ export function DeviceDetail() {
   };
 
   const handleUninstallApp = async () => {
-    if (!selectedAppId || !udid) return;
+    if (selectedUninstallIds.length === 0 || !udid) return;
     setAppLoading(true);
     setActionResult(null);
     try {
-      const { data } = await apiClient.post("/api/device-apps/uninstall", {
-        app_id: selectedAppId,
-        udid,
-      });
-      if (data.command_uuid) {
-        const app = deviceApps.find((a) => a.app_id === selectedAppId);
-        trackCommand(`移除 ${app?.app_name || "App"}`, [udid], data.command_uuid);
+      for (const appId of selectedUninstallIds) {
+        const { data } = await apiClient.post("/api/device-apps/uninstall", {
+          app_id: appId,
+          udid,
+        });
+        if (data.command_uuid) {
+          const app = deviceApps.find((a) => a.app_id === appId);
+          trackCommand(`移除 ${app?.app_name || "App"}`, [udid], data.command_uuid);
+        }
       }
-      if (data.raw_response) setActionResult(data.raw_response);
       setShowAppUninstall(false);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
@@ -342,19 +350,20 @@ export function DeviceDetail() {
   };
 
   const handleUpdateApp = async () => {
-    if (!selectedAppId || !udid) return;
+    if (selectedUpdateIds.length === 0 || !udid) return;
     setAppLoading(true);
     setActionResult(null);
     try {
-      const { data } = await apiClient.post("/api/device-apps/update", {
-        app_id: selectedAppId,
-        udid,
-      });
-      if (data.command_uuid) {
-        const app = deviceApps.find((a) => a.app_id === selectedAppId);
-        trackCommand(`更新 ${app?.app_name || "App"}`, [udid], data.command_uuid);
+      for (const appId of selectedUpdateIds) {
+        const { data } = await apiClient.post("/api/device-apps/update", {
+          app_id: appId,
+          udid,
+        });
+        if (data.command_uuid) {
+          const app = deviceApps.find((a) => a.app_id === appId);
+          trackCommand(`更新 ${app?.app_name || "App"}`, [udid], data.command_uuid);
+        }
       }
-      if (data.raw_response) setActionResult(data.raw_response);
       setShowAppUpdate(false);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
@@ -512,6 +521,8 @@ export function DeviceDetail() {
                 <ResponseViewer
                   rawPayload={cachedPayload}
                   onRemoveProfile={activeTab === "profiles" ? removeProfile : undefined}
+                  appIcons={activeTab === "apps" ? Object.fromEntries(managedApps.filter((a) => a.icon_url).map((a) => [a.bundle_id, a.icon_url])) : undefined}
+                  managedBundleIds={activeTab === "apps" ? new Set(deviceApps.map((da) => da.bundle_id)) : undefined}
                 />
               ) : (
                 <div className="text-center py-8 text-base-content/50">
@@ -639,22 +650,25 @@ export function DeviceDetail() {
               </div>
             ) : (
               <div className="space-y-2">
-                <label className="label"><span className="label-text font-medium">選擇 App</span></label>
+                <label className="label"><span className="label-text font-medium">選擇要安裝的 App（可多選）</span></label>
                 <div className="border border-base-300 rounded-lg max-h-64 overflow-y-auto divide-y divide-base-200">
                   {managedApps
                     .filter((a) => !deviceApps.some((da) => da.app_id === a.id))
                     .map((a) => {
                       const avail = a.purchased_qty > 0 ? a.purchased_qty - a.installed_count : null;
                       const disabled = avail !== null && avail <= 0;
-                      const selected = selectedAppId === a.id;
+                      const selected = selectedInstallIds.includes(a.id);
                       return (
                         <div
                           key={a.id}
-                          onClick={() => !disabled && setSelectedAppId(selected ? "" : a.id)}
+                          onClick={() => !disabled && setSelectedInstallIds((prev) =>
+                            selected ? prev.filter((id) => id !== a.id) : [...prev, a.id]
+                          )}
                           className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors
                             ${disabled ? "opacity-40 cursor-not-allowed" : "hover:bg-base-200"}
                             ${selected ? "bg-primary/10 border-l-2 border-primary" : ""}`}
                         >
+                          <input type="checkbox" checked={selected} disabled={disabled} readOnly className="checkbox checkbox-primary checkbox-sm" />
                           {a.icon_url ? (
                             <img src={a.icon_url} alt="" className="w-9 h-9 rounded-lg flex-shrink-0" />
                           ) : (
@@ -690,11 +704,11 @@ export function DeviceDetail() {
             <button className="btn" onClick={() => setShowAppInstall(false)}>取消</button>
             <button
               className="btn btn-primary gap-1"
-              disabled={!selectedAppId || appLoading}
+              disabled={selectedInstallIds.length === 0 || appLoading}
               onClick={handleInstallApp}
             >
               {appLoading ? <span className="loading loading-spinner loading-xs"></span> : <Download size={14} />}
-              安裝
+              安裝 {selectedInstallIds.length > 0 ? `(${selectedInstallIds.length})` : ""}
             </button>
           </div>
         </div>
@@ -716,14 +730,17 @@ export function DeviceDetail() {
               <div className="border border-base-300 rounded-lg max-h-64 overflow-y-auto divide-y divide-base-200">
                 {deviceApps.map((da) => {
                   const app = managedApps.find((a) => a.id === da.app_id);
-                  const selected = selectedAppId === da.app_id;
+                  const selected = selectedUpdateIds.includes(da.app_id);
                   return (
                     <div
                       key={da.app_id}
-                      onClick={() => setSelectedAppId(selected ? "" : da.app_id)}
+                      onClick={() => setSelectedUpdateIds((prev) =>
+                        selected ? prev.filter((id) => id !== da.app_id) : [...prev, da.app_id]
+                      )}
                       className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors hover:bg-base-200
                         ${selected ? "bg-primary/10 border-l-2 border-primary" : ""}`}
                     >
+                      <input type="checkbox" checked={selected} readOnly className="checkbox checkbox-primary checkbox-sm" />
                       {app?.icon_url ? (
                         <img src={app.icon_url} alt="" className="w-9 h-9 rounded-lg flex-shrink-0" />
                       ) : (
@@ -745,11 +762,11 @@ export function DeviceDetail() {
             <button className="btn" onClick={() => setShowAppUpdate(false)}>取消</button>
             <button
               className="btn btn-primary gap-1"
-              disabled={!selectedAppId || appLoading}
+              disabled={selectedUpdateIds.length === 0 || appLoading}
               onClick={handleUpdateApp}
             >
               {appLoading ? <span className="loading loading-spinner loading-xs"></span> : <RefreshCcw size={14} />}
-              更新
+              更新 {selectedUpdateIds.length > 0 ? `(${selectedUpdateIds.length})` : ""}
             </button>
           </div>
         </div>
@@ -761,26 +778,41 @@ export function DeviceDetail() {
       <dialog className={`modal ${showAppUninstall ? "modal-open" : ""}`}>
         <div className="modal-box">
           <h3 className="font-bold text-lg flex items-center gap-2"><PackageMinus size={18} /> 移除 App</h3>
+          <p className="text-sm text-base-content/60 mt-1">選擇要從裝置移除的 App（可多選）</p>
           <div className="py-4">
             {deviceApps.length === 0 ? (
               <div className="text-center py-4 text-base-content/50">
                 此裝置尚未安裝任何受管理的 App
               </div>
             ) : (
-              <div className="form-control">
-                <label className="label"><span className="label-text font-medium">選擇要移除的 App</span></label>
-                <select
-                  value={selectedAppId}
-                  onChange={(e) => setSelectedAppId(e.target.value)}
-                  className="select select-bordered select-sm w-full"
-                >
-                  <option value="">— 請選擇 —</option>
-                  {deviceApps.map((da) => (
-                    <option key={da.app_id} value={da.app_id}>
-                      {da.app_name} ({da.bundle_id})
-                    </option>
-                  ))}
-                </select>
+              <div className="border border-base-300 rounded-lg max-h-64 overflow-y-auto divide-y divide-base-200">
+                {deviceApps.map((da) => {
+                  const app = managedApps.find((a) => a.id === da.app_id);
+                  const selected = selectedUninstallIds.includes(da.app_id);
+                  return (
+                    <div
+                      key={da.app_id}
+                      onClick={() => setSelectedUninstallIds((prev) =>
+                        selected ? prev.filter((id) => id !== da.app_id) : [...prev, da.app_id]
+                      )}
+                      className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors hover:bg-base-200
+                        ${selected ? "bg-error/10 border-l-2 border-error" : ""}`}
+                    >
+                      <input type="checkbox" checked={selected} readOnly className="checkbox checkbox-error checkbox-sm" />
+                      {app?.icon_url ? (
+                        <img src={app.icon_url} alt="" className="w-9 h-9 rounded-lg flex-shrink-0" />
+                      ) : (
+                        <div className="w-9 h-9 rounded-lg bg-base-300 flex items-center justify-center flex-shrink-0">
+                          <Package size={16} className="opacity-40" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium">{da.app_name}</div>
+                        <div className="text-xs opacity-50 font-mono truncate">{da.bundle_id}</div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -788,11 +820,11 @@ export function DeviceDetail() {
             <button className="btn" onClick={() => setShowAppUninstall(false)}>取消</button>
             <button
               className="btn btn-error gap-1"
-              disabled={!selectedAppId || appLoading}
+              disabled={selectedUninstallIds.length === 0 || appLoading}
               onClick={handleUninstallApp}
             >
               {appLoading ? <span className="loading loading-spinner loading-xs"></span> : <PackageMinus size={14} />}
-              移除
+              移除 {selectedUninstallIds.length > 0 ? `(${selectedUninstallIds.length})` : ""}
             </button>
           </div>
         </div>

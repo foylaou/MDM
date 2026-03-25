@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -1146,10 +1147,16 @@ func main() {
 					_, _ = vppClient.AssignLicense(r.Context(), itunesStoreID, []string{dev.SerialNumber})
 				}
 			}
+			storeIDInt, parseErr := strconv.ParseInt(itunesStoreID, 10, 64)
+			if parseErr != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]string{"error": "invalid itunes_store_id: " + itunesStoreID})
+				return
+			}
 			payload = map[string]interface{}{
 				"udid":            body.UDID,
 				"request_type":    "InstallApplication",
-				"itunes_store_id": itunesStoreID,
+				"itunes_store_id": storeIDInt,
 				"options":         map[string]interface{}{"purchase_method": 1},
 			}
 		}
@@ -1221,10 +1228,16 @@ func main() {
 				"manifest_url": manifestURL,
 			}
 		} else {
+			storeIDInt, parseErr := strconv.ParseInt(itunesStoreID, 10, 64)
+			if parseErr != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]string{"error": "invalid itunes_store_id: " + itunesStoreID})
+				return
+			}
 			payload = map[string]interface{}{
 				"udid":            body.UDID,
 				"request_type":    "InstallApplication",
-				"itunes_store_id": itunesStoreID,
+				"itunes_store_id": storeIDInt,
 				"options":         map[string]interface{}{"purchase_method": 1},
 			}
 		}

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useDialog } from "./DialogProvider";
 import { parsePlist, base64ToUtf8 } from "../lib/plist";
@@ -17,9 +17,13 @@ interface ResponseViewerProps {
   commandType?: string;
   /** Callback when user wants to remove a profile by identifier */
   onRemoveProfile?: (identifier: string) => void;
+  /** Map of bundle_id → icon_url for app list display */
+  appIcons?: Record<string, string>;
+  /** Set of bundle_ids that are managed (installed via MDM) */
+  managedBundleIds?: Set<string>;
 }
 
-export function ResponseViewer({ rawPayload, commandType, onRemoveProfile }: ResponseViewerProps) {
+export function ResponseViewer({ rawPayload, commandType, onRemoveProfile, appIcons, managedBundleIds }: ResponseViewerProps) {
   const parsed = useMemo(() => {
     if (!rawPayload) return null;
     // Try as XML directly
@@ -56,7 +60,7 @@ export function ResponseViewer({ rawPayload, commandType, onRemoveProfile }: Res
       return <DeviceInfoView data={queryResponses} status={status} />;
     }
     if (queryResponses.InstalledApplicationList) {
-      return <AppListView apps={queryResponses.InstalledApplicationList} status={status} />;
+      return <AppListView apps={queryResponses.InstalledApplicationList} status={status} appIcons={appIcons} managedBundleIds={managedBundleIds} />;
     }
     if (queryResponses.ProfileList) {
       return <ProfileListView profiles={queryResponses.ProfileList} status={status} onRemove={onRemoveProfile} />;
@@ -75,7 +79,7 @@ export function ResponseViewer({ rawPayload, commandType, onRemoveProfile }: Res
 
   // --- Check TOP-LEVEL keys (InstalledApplicationList, ProfileList, etc.) ---
   if (Array.isArray(parsed.InstalledApplicationList)) {
-    return <AppListView apps={parsed.InstalledApplicationList} status={status} />;
+    return <AppListView apps={parsed.InstalledApplicationList} status={status} appIcons={appIcons} managedBundleIds={managedBundleIds} />;
   }
   if (Array.isArray(parsed.ProfileList)) {
     return <ProfileListView profiles={parsed.ProfileList} status={status} onRemove={onRemoveProfile} />;
@@ -218,7 +222,49 @@ function DeviceInfoView({ data, status }: { data: Dict; status?: string }) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function AppListView({ apps, status }: { apps: any[]; status?: string }) {
+function AppListView({ apps, status, appIcons, managedBundleIds }: { apps: any[]; status?: string; appIcons?: Record<string, string>; managedBundleIds?: Set<string> }) {
+  const [fetchedIcons, setFetchedIcons] = useState<Record<string, string>>({});
+  const baseUrl = import.meta.env.DEV ? "" : window.location.origin;
+
+  useEffect(() => {
+    const missing = apps
+      .map((a) => a.Identifier || a.BundleIdentifier || "")
+      .filter((id) => id && !id.startsWith("com.apple.") && !appIcons?.[id] && !fetchedIcons[id]);
+    const unique = [...new Set(missing)];
+    if (unique.length === 0) return;
+
+    let cancelled = false;
+    const batch = unique.slice(0, 30);
+    Promise.allSettled(
+      batch.map((bundleId) =>
+        fetch(`${baseUrl}/api/itunes-lookup?bundleId=${encodeURIComponent(bundleId)}`, { credentials: "include" })
+          .then((r) => r.json())
+          .then((data) => {
+            const result = data?.results?.[0];
+            if (result?.artworkUrl60 && !cancelled) {
+              return { bundleId, icon: result.artworkUrl60 as string };
+            }
+            return null;
+          })
+          .catch(() => null)
+      )
+    ).then((results) => {
+      if (cancelled) return;
+      const icons: Record<string, string> = {};
+      for (const r of results) {
+        if (r.status === "fulfilled" && r.value) {
+          icons[r.value.bundleId] = r.value.icon;
+        }
+      }
+      if (Object.keys(icons).length > 0) {
+        setFetchedIcons((prev) => ({ ...prev, ...icons }));
+      }
+    });
+    return () => { cancelled = true; };
+  }, [apps, appIcons, baseUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const allIcons = { ...appIcons, ...fetchedIcons };
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
@@ -229,21 +275,37 @@ function AppListView({ apps, status }: { apps: any[]; status?: string }) {
         <table className="table table-xs">
           <thead>
             <tr>
+              <th className="w-8"></th>
               <th>名稱</th>
               <th>識別碼</th>
               <th>版本</th>
               <th>大小</th>
+              <th>管理</th>
             </tr>
           </thead>
           <tbody>
-            {apps.map((app, i) => (
-              <tr key={i} className="hover">
-                <td className="font-medium">{app.Name || "-"}</td>
-                <td className="font-mono text-xs opacity-70">{app.Identifier || app.BundleIdentifier || "-"}</td>
-                <td className="text-xs">{app.ShortVersion || app.Version || "-"}</td>
-                <td className="text-xs">{app.DynamicSize ? formatBytes(app.DynamicSize + (app.StaticSize || 0)) : "-"}</td>
-              </tr>
-            ))}
+            {apps.map((app, i) => {
+              const bundleId = app.Identifier || app.BundleIdentifier || "";
+              const iconUrl = allIcons[bundleId];
+              return (
+                <tr key={i} className="hover">
+                  <td>
+                    {iconUrl ? (
+                      <img src={iconUrl} alt="" className="w-6 h-6 rounded" />
+                    ) : (
+                      <div className="w-6 h-6 rounded bg-base-300 flex items-center justify-center">
+                        <Package size={12} className="opacity-40" />
+                      </div>
+                    )}
+                  </td>
+                  <td className="font-medium">{app.Name || "-"}</td>
+                  <td className="font-mono text-xs opacity-70">{bundleId || "-"}</td>
+                  <td className="text-xs">{app.ShortVersion || app.Version || "-"}</td>
+                  <td className="text-xs">{app.DynamicSize ? formatBytes(app.DynamicSize + (app.StaticSize || 0)) : "-"}</td>
+                  <td>{managedBundleIds?.has(bundleId) ? <span className="badge badge-success badge-xs">受管理</span> : bundleId.startsWith("com.apple.") ? <span className="badge badge-info badge-xs">預載</span> : <span className="badge badge-ghost badge-xs">個人</span>}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

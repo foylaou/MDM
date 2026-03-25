@@ -33,6 +33,7 @@ import (
 )
 
 func main() {
+	log.Println("[startup] === MDM server starting (code version: 2026-03-25-v2) ===")
 	cfg := config.Load()
 
 	// Database
@@ -115,6 +116,49 @@ func main() {
 		relay := service.NewSocketIORelay(cfg.WebSocketURL, cfg.MicroMDMKey, webhookHandler)
 		relay.Start()
 	}
+
+	// Process pending app commands when device acknowledges
+	go func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		ch := broker.Subscribe(ctx)
+		for evt := range ch {
+			if evt.EventType != "acknowledge" || evt.CommandUUID == "" {
+				continue
+			}
+			var pending struct {
+				Action string
+				AppID  string
+				UDID   string
+			}
+			err := pool.QueryRow(context.Background(),
+				`SELECT action, device_udid, app_id FROM pending_app_commands WHERE command_uuid=$1`,
+				evt.CommandUUID).Scan(&pending.Action, &pending.UDID, &pending.AppID)
+			if err != nil {
+				continue // not a pending app command
+			}
+
+			if evt.Status == "Acknowledged" {
+				if pending.Action == "install" {
+					pool.Exec(context.Background(),
+						`INSERT INTO device_apps (device_udid, app_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+						pending.UDID, pending.AppID)
+					log.Printf("[pending-app] install confirmed: udid=%s app=%s cmd=%s", pending.UDID, pending.AppID, evt.CommandUUID)
+				} else if pending.Action == "uninstall" {
+					pool.Exec(context.Background(),
+						`DELETE FROM device_apps WHERE device_udid=$1 AND app_id=$2`,
+						pending.UDID, pending.AppID)
+					log.Printf("[pending-app] uninstall confirmed: udid=%s app=%s cmd=%s", pending.UDID, pending.AppID, evt.CommandUUID)
+				}
+			} else {
+				log.Printf("[pending-app] command failed: action=%s udid=%s app=%s status=%s cmd=%s",
+					pending.Action, pending.UDID, pending.AppID, evt.Status, evt.CommandUUID)
+			}
+			// Remove pending record regardless of success/failure
+			pool.Exec(context.Background(),
+				`DELETE FROM pending_app_commands WHERE command_uuid=$1`, evt.CommandUUID)
+		}
+	}()
 
 	// Health check
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -1100,6 +1144,8 @@ func main() {
 			return
 		}
 
+		log.Printf("[install-app] request received: app_id=%s udid=%s user=%s", body.AppID, body.UDID, claims.Username)
+
 		// Look up the managed app
 		var appType, itunesStoreID, manifestURL, bundleID, appName string
 		var purchasedQty int
@@ -1139,12 +1185,33 @@ func main() {
 				"manifest_url": manifestURL,
 			}
 		} else {
-			// VPP app — assign license first if VPP client available
+			// VPP app — assign license before install
 			if vppClient != nil && itunesStoreID != "" {
-				// Get device serial number for VPP
 				dev, devErr := deviceRepo.GetByUDID(r.Context(), body.UDID)
-				if devErr == nil && dev.SerialNumber != "" {
-					_, _ = vppClient.AssignLicense(r.Context(), itunesStoreID, []string{dev.SerialNumber})
+				if devErr != nil || dev.SerialNumber == "" {
+					w.WriteHeader(http.StatusBadRequest)
+					json.NewEncoder(w).Encode(map[string]string{"error": "無法取得裝置序號，無法指派 VPP 授權"})
+					return
+				}
+				vppResp, vppErr := vppClient.AssignLicense(r.Context(), itunesStoreID, []string{dev.SerialNumber})
+				if vppErr != nil {
+					log.Printf("VPP assign license failed: %v", vppErr)
+					w.WriteHeader(http.StatusInternalServerError)
+					json.NewEncoder(w).Encode(map[string]string{"error": "VPP 授權指派失敗: " + vppErr.Error()})
+					return
+				}
+				log.Printf("VPP assign license response: %s", vppResp)
+				// Check VPP API response for errors
+				var vppResult struct {
+					Status      int    `json:"status"`
+					ErrorNumber int    `json:"errorNumber"`
+					ErrorMessage string `json:"errorMessage"`
+				}
+				if json.Unmarshal([]byte(vppResp), &vppResult) == nil && vppResult.Status != 0 {
+					log.Printf("VPP assign license API error: status=%d errorNumber=%d msg=%s", vppResult.Status, vppResult.ErrorNumber, vppResult.ErrorMessage)
+					w.WriteHeader(http.StatusInternalServerError)
+					json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("VPP 授權指派失敗 (error %d): %s", vppResult.ErrorNumber, vppResult.ErrorMessage)})
+					return
 				}
 			}
 			storeIDInt, parseErr := strconv.ParseInt(itunesStoreID, 10, 64)
@@ -1169,10 +1236,10 @@ func main() {
 		}
 		_ = mdmClient.SendPush(r.Context(), body.UDID)
 
-		// Create device_app binding
+		// Save pending command — binding will be created when device acknowledges
 		pool.Exec(r.Context(),
-			`INSERT INTO device_apps (device_udid, app_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-			body.UDID, body.AppID)
+			`INSERT INTO pending_app_commands (command_uuid, action, device_udid, app_id) VALUES ($1, 'install', $2, $3) ON CONFLICT DO NOTHING`,
+			result.CommandUUID, body.UDID, body.AppID)
 
 		// Audit log
 		_ = auditRepo.Create(r.Context(), &domain.AuditLog{
@@ -1220,6 +1287,8 @@ func main() {
 			return
 		}
 
+		log.Printf("[update-app] request received: app_id=%s udid=%s user=%s appType=%s", body.AppID, body.UDID, claims.Username, appType)
+
 		var payload map[string]interface{}
 		if appType == "enterprise" {
 			payload = map[string]interface{}{
@@ -1228,6 +1297,34 @@ func main() {
 				"manifest_url": manifestURL,
 			}
 		} else {
+			// VPP app — assign license before install/update
+			if vppClient != nil && itunesStoreID != "" {
+				dev, devErr := deviceRepo.GetByUDID(r.Context(), body.UDID)
+				if devErr != nil || dev.SerialNumber == "" {
+					w.WriteHeader(http.StatusBadRequest)
+					json.NewEncoder(w).Encode(map[string]string{"error": "無法取得裝置序號，無法指派 VPP 授權"})
+					return
+				}
+				vppResp, vppErr := vppClient.AssignLicense(r.Context(), itunesStoreID, []string{dev.SerialNumber})
+				if vppErr != nil {
+					log.Printf("VPP assign license failed: %v", vppErr)
+					w.WriteHeader(http.StatusInternalServerError)
+					json.NewEncoder(w).Encode(map[string]string{"error": "VPP 授權指派失敗: " + vppErr.Error()})
+					return
+				}
+				log.Printf("VPP assign license response: %s", vppResp)
+				var vppResult struct {
+					Status       int    `json:"status"`
+					ErrorNumber  int    `json:"errorNumber"`
+					ErrorMessage string `json:"errorMessage"`
+				}
+				if json.Unmarshal([]byte(vppResp), &vppResult) == nil && vppResult.Status != 0 {
+					log.Printf("VPP assign license API error: status=%d errorNumber=%d msg=%s", vppResult.Status, vppResult.ErrorNumber, vppResult.ErrorMessage)
+					w.WriteHeader(http.StatusInternalServerError)
+					json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("VPP 授權指派失敗 (error %d): %s", vppResult.ErrorNumber, vppResult.ErrorMessage)})
+					return
+				}
+			}
 			storeIDInt, parseErr := strconv.ParseInt(itunesStoreID, 10, 64)
 			if parseErr != nil {
 				w.WriteHeader(http.StatusBadRequest)
@@ -1313,8 +1410,10 @@ func main() {
 		}
 		_ = mdmClient.SendPush(r.Context(), body.UDID)
 
-		// Remove binding
-		pool.Exec(r.Context(), `DELETE FROM device_apps WHERE device_udid=$1 AND app_id=$2`, body.UDID, body.AppID)
+		// Save pending command — binding will be removed when device acknowledges
+		pool.Exec(r.Context(),
+			`INSERT INTO pending_app_commands (command_uuid, action, device_udid, app_id) VALUES ($1, 'uninstall', $2, $3) ON CONFLICT DO NOTHING`,
+			result.CommandUUID, body.UDID, body.AppID)
 
 		// Audit log
 		_ = auditRepo.Create(r.Context(), &domain.AuditLog{

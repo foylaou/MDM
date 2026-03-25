@@ -102,9 +102,16 @@ export function Commands() {
     setLoading(true);
     setResult(null);
     try {
-      const payload: Record<string, unknown> = { udids: selectedUdids, ...fields };
+      const reqPayload: Record<string, unknown> = { udids: selectedUdids, ...fields };
+      // Convert base64 string payload to raw bytes for InstallProfile
+      if (typeof reqPayload.payload === "string" && reqPayload.payload) {
+        const binary = atob(reqPayload.payload);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        reqPayload.payload = bytes;
+      }
       // @ts-expect-error dynamic method call
-      const resp = await clients.command[selectedCmd.method](payload);
+      const resp = await clients.command[selectedCmd.method](reqPayload);
 
       // Track the command for status monitoring
       const cmdLabel = t(`commands.items.${selectedCmd.label}`);

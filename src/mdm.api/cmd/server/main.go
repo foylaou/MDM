@@ -116,9 +116,10 @@ func main() {
 	}
 
 	// Health check
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		// 使用空白識別字明確表示「我知道有錯誤，但我打算忽略它」
+		_, _ = w.Write([]byte("ok"))
 	})
 
 	// REST Login — sets HttpOnly cookie
@@ -138,17 +139,18 @@ func main() {
 		user, err := userRepo.GetByUsername(r.Context(), body.Username)
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"error":"invalid credentials"}`))
+			_, _ = w.Write([]byte(`{"error":"invalid credentials"}`))
 			return
 		}
 		if !service.VerifyPassword(user.PasswordHash, body.Password) {
 			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"error":"invalid credentials"}`))
+			_, _ = w.Write([]byte(`{"error":"invalid credentials"}`))
 			return
 		}
 		if !user.IsActive {
 			w.WriteHeader(http.StatusForbidden)
-			w.Write([]byte(`{"error":"account pending activation","code":"inactive"}`))
+			_, _ = w.Write([]byte(`{"error":"account pending activation","code":"inactive"}`))
+
 			return
 		}
 		access, _, expiresAt, err := middleware.GenerateTokens(cfg.JWTSecret, user.ID, user.Username, user.Role)
@@ -165,7 +167,8 @@ func main() {
 			MaxAge:   24 * 60 * 60, // 24h
 		})
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"expires_at": expiresAt,
 			"user": map[string]string{
 				"id": user.ID, "username": user.Username,
@@ -181,7 +184,7 @@ func main() {
 			HttpOnly: true, MaxAge: -1,
 		})
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"ok":true}`))
+		_, _ = w.Write([]byte(`{"ok":true}`))
 	})
 
 	// REST /api/me — check auth status
@@ -189,11 +192,11 @@ func main() {
 		claims, err := middleware.ExtractTokenFromRequest(r, cfg.JWTSecret)
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"error":"unauthorized"}`))
+			_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"id": claims.UserID, "username": claims.Username, "role": claims.Role,
 		})
 	})
@@ -211,12 +214,12 @@ func main() {
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Username == "" || body.Password == "" {
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(`{"error":"username and password required"}`))
+			_, _ = w.Write([]byte(`{"error":"username and password required"}`))
 			return
 		}
 		if len(body.Password) < 6 {
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(`{"error":"password must be at least 6 characters"}`))
+			_, _ = w.Write([]byte(`{"error":"password must be at least 6 characters"}`))
 			return
 		}
 		hash, err := service.HashArgon2id(body.Password)
@@ -233,11 +236,11 @@ func main() {
 			body.Username, hash, displayName)
 		if err != nil {
 			w.WriteHeader(http.StatusConflict)
-			w.Write([]byte(`{"error":"username already exists"}`))
+			_, _ = w.Write([]byte(`{"error":"username already exists"}`))
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"ok":true,"message":"registration successful, please wait for admin activation"}`))
+		_, _ = w.Write([]byte(`{"ok":true,"message":"registration successful, please wait for admin activation"}`))
 		log.Printf("[register] new user '%s' registered (inactive)", body.Username)
 	})
 
@@ -248,13 +251,13 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(`{"error":"database error"}`))
+			_, _ = w.Write([]byte(`{"error":"database error"}`))
 			return
 		}
 		if count == 0 {
-			w.Write([]byte(`{"initialized":false}`))
+			_, _ = w.Write([]byte(`{"initialized":false}`))
 		} else {
-			w.Write([]byte(`{"initialized":true}`))
+			_, _ = w.Write([]byte(`{"initialized":true}`))
 		}
 	})
 
@@ -267,12 +270,12 @@ func main() {
 		var count int
 		if err := pool.QueryRow(r.Context(), "SELECT count(*) FROM users").Scan(&count); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(`{"error":"database error"}`))
+			_, _ = w.Write([]byte(`{"error":"database error"}`))
 			return
 		}
 		if count > 0 {
 			w.WriteHeader(http.StatusForbidden)
-			w.Write([]byte(`{"error":"system already initialized"}`))
+			_, _ = w.Write([]byte(`{"error":"system already initialized"}`))
 			return
 		}
 		var body struct {
@@ -282,13 +285,13 @@ func main() {
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Username == "" || body.Password == "" {
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(`{"error":"username and password required"}`))
+			_, _ = w.Write([]byte(`{"error":"username and password required"}`))
 			return
 		}
 		hash, err := service.HashArgon2id(body.Password)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(`{"error":"failed to hash password"}`))
+			_, _ = w.Write([]byte(`{"error":"failed to hash password"}`))
 			return
 		}
 		displayName := body.DisplayName
@@ -300,11 +303,11 @@ func main() {
 			body.Username, hash, displayName)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(`{"error":"failed to create user"}`))
+			_, _ = w.Write([]byte(`{"error":"failed to create user"}`))
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"ok":true}`))
+		_, _ = w.Write([]byte(`{"ok":true}`))
 		log.Printf("setup: admin user '%s' created", body.Username)
 	})
 
@@ -316,7 +319,7 @@ func main() {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"backend_relay": cfg.WebSocketURL != "",
 		})
 	})

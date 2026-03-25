@@ -251,7 +251,10 @@ export function DeviceDetail() {
     setShowInstallProfile(false);
     setExecuting("installProfile");
     try {
-      const resp = await clients.command.installProfile({ udids: [udid], payload: new TextEncoder().encode(atob(selectedProfilePayload)) });
+      const binary = atob(selectedProfilePayload);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const resp = await clients.command.installProfile({ udids: [udid], payload: bytes });
       trackCommand("安裝描述檔", [udid], resp.commandUuid);
       setSelectedProfileId("");
       setSelectedProfilePayload("");

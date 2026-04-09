@@ -162,10 +162,22 @@ func (s *CommandService) ClearPasscode(ctx context.Context, req *connect.Request
 func (s *CommandService) InstallApp(ctx context.Context, req *connect.Request[mdmv1.InstallAppRequest]) (*connect.Response[mdmv1.CommandResponse], error) {
 	s.auditAction(ctx, "install_app", fmt.Sprint(req.Msg.Udids), req.Msg.ItunesStoreId)
 
-	// Optionally assign VPP licenses first
+	// Assign VPP licenses before installing
 	if req.Msg.AssignVppLicense && s.vpp != nil {
-		// We need serial numbers but only have UDIDs - in production you'd look these up
-		// For now, pass UDIDs and let VPP adapter handle
+		var serialNumbers []string
+		for _, udid := range req.Msg.Udids {
+			dev, err := s.devices.GetByUDID(ctx, udid)
+			if err != nil {
+				return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("lookup serial for %s: %w", udid, err))
+			}
+			if dev.SerialNumber == "" {
+				return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("device %s has no serial number", udid))
+			}
+			serialNumbers = append(serialNumbers, dev.SerialNumber)
+		}
+		if _, err := s.vpp.AssignLicense(ctx, req.Msg.ItunesStoreId, serialNumbers); err != nil {
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("vpp assign license: %w", err))
+		}
 	}
 
 	storeID, err := strconv.ParseInt(req.Msg.ItunesStoreId, 10, 64)

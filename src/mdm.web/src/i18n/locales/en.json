@@ -6,15 +6,23 @@
   },
   "nav": {
     "dashboard": "Dashboard",
+    "group_asset": "Asset Management",
+    "assets": "Asset List",
+    "categories": "Categories",
+    "group_mdm": "Device Management",
     "devices": "Devices",
     "commands": "Commands",
     "apps": "Apps",
     "profiles": "Profiles",
-    "rentals": "Rentals",
     "events": "Events",
-    "categories": "Categories",
+    "group_rental": "Rental System",
+    "rentals": "Rentals",
+    "notifications": "Notifications",
+    "group_admin": "Administration",
     "users": "Users",
-    "audit": "Audit Logs"
+    "audit": "Audit Logs",
+    "forbidden": "Access Denied",
+    "forbidden_desc": "You do not have permission to access this module. Please contact your administrator."
   },
   "common": {
     "search": "Search...",

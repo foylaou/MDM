@@ -1,0 +1,1618 @@
+basePath: /
+definitions:
+  controller.swagAppActionReq:
+    properties:
+      app_id:
+        type: string
+      udid:
+        type: string
+    type: object
+  controller.swagArchiveReq:
+    properties:
+      ids:
+        items:
+          type: string
+        type: array
+    type: object
+  controller.swagAssetReq:
+    properties:
+      acquired_date:
+        example: "2025-01-01"
+        type: string
+      asset_category:
+        type: string
+      asset_number:
+        type: string
+      borrow_date:
+        example: "2025-06-01"
+        type: string
+      category_id:
+        type: string
+      custodian_id:
+        type: string
+      custodian_name:
+        type: string
+      device_udid:
+        type: string
+      location:
+        type: string
+      name:
+        type: string
+      notes:
+        type: string
+      purpose:
+        type: string
+      quantity:
+        type: integer
+      spec:
+        type: string
+      unit:
+        type: string
+      unit_price:
+        type: number
+    type: object
+  controller.swagCategoryItem:
+    properties:
+      id:
+        type: string
+      level:
+        type: integer
+      name:
+        type: string
+      parent_id:
+        type: string
+      sort_order:
+        type: integer
+    type: object
+  controller.swagCategoryReq:
+    properties:
+      name:
+        type: string
+      parent_id:
+        type: string
+    type: object
+  controller.swagCategoryUpdateReq:
+    properties:
+      name:
+        type: string
+    type: object
+  controller.swagCommandResp:
+    properties:
+      command_uuid:
+        type: string
+      ok:
+        type: boolean
+      raw_response: {}
+    type: object
+  controller.swagDevice:
+    properties:
+      battery_level:
+        type: number
+      device_name:
+        type: string
+      enrollment_status:
+        type: string
+      is_lost_mode:
+        type: boolean
+      is_supervised:
+        type: boolean
+      last_seen:
+        type: string
+      model:
+        type: string
+      os_version:
+        type: string
+      serial_number:
+        type: string
+      udid:
+        type: string
+    type: object
+  controller.swagDeviceAvailItem:
+    properties:
+      asset_status:
+        type: string
+      device_name:
+        type: string
+      enrollment_status:
+        type: string
+      model:
+        type: string
+      os_version:
+        type: string
+      serial_number:
+        type: string
+      udid:
+        type: string
+    type: object
+  controller.swagDeviceAvailResp:
+    properties:
+      devices:
+        items:
+          $ref: '#/definitions/controller.swagDeviceAvailItem'
+        type: array
+    type: object
+  controller.swagDeviceListItem:
+    properties:
+      asset_status:
+        type: string
+      battery_level:
+        type: number
+      category_id:
+        type: string
+      category_name:
+        type: string
+      custodian_id:
+        type: string
+      custodian_name:
+        type: string
+      device_name:
+        type: string
+      enrollment_status:
+        type: string
+      is_lost_mode:
+        type: boolean
+      is_supervised:
+        type: boolean
+      last_seen:
+        type: string
+      model:
+        type: string
+      os_version:
+        type: string
+      serial_number:
+        type: string
+      udid:
+        type: string
+    type: object
+  controller.swagDeviceListResp:
+    properties:
+      devices:
+        items:
+          $ref: '#/definitions/controller.swagDeviceListItem'
+        type: array
+      total:
+        type: integer
+    type: object
+  controller.swagDeviceStatusReq:
+    properties:
+      status:
+        enum:
+        - available
+        - faulty
+        - repairing
+        - retired
+        example: available
+        type: string
+      udid:
+        example: 00008101-001234560A12001E
+        type: string
+    type: object
+  controller.swagError:
+    properties:
+      error:
+        example: error message
+        type: string
+    type: object
+  controller.swagLoginReq:
+    properties:
+      password:
+        example: secret123
+        type: string
+      username:
+        example: admin
+        type: string
+    type: object
+  controller.swagLoginResp:
+    properties:
+      expires_at:
+        type: string
+      module_permissions:
+        additionalProperties:
+          type: string
+        type: object
+      user:
+        $ref: '#/definitions/controller.swagLoginUser'
+    type: object
+  controller.swagLoginUser:
+    properties:
+      display_name:
+        type: string
+      id:
+        type: string
+      role:
+        type: string
+      system_role:
+        type: string
+      username:
+        type: string
+    type: object
+  controller.swagManagedAppReq:
+    properties:
+      app_type:
+        enum:
+        - vpp
+        - enterprise
+        example: vpp
+        type: string
+      bundle_id:
+        type: string
+      icon_url:
+        type: string
+      itunes_store_id:
+        type: string
+      manifest_url:
+        type: string
+      name:
+        type: string
+      notes:
+        type: string
+      purchased_qty:
+        type: integer
+    type: object
+  controller.swagMeResp:
+    properties:
+      id:
+        type: string
+      module_permissions:
+        additionalProperties:
+          type: string
+        type: object
+      role:
+        type: string
+      system_role:
+        type: string
+      username:
+        type: string
+    type: object
+  controller.swagNotificationItem:
+    properties:
+      created_at:
+        type: string
+      event:
+        type: string
+      id:
+        type: string
+      recipient:
+        type: string
+      reference_id:
+        type: string
+      status:
+        type: string
+      subject:
+        type: string
+      type:
+        type: string
+    type: object
+  controller.swagOK:
+    properties:
+      ok:
+        example: true
+        type: boolean
+    type: object
+  controller.swagProfileContentResp:
+    properties:
+      content_base64:
+        type: string
+      filename:
+        type: string
+    type: object
+  controller.swagProfileItem:
+    properties:
+      created_at:
+        type: string
+      filename:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      size:
+        type: integer
+      uploaded_by:
+        type: string
+    type: object
+  controller.swagRegisterReq:
+    properties:
+      display_name:
+        example: New User
+        type: string
+      password:
+        example: secret123
+        type: string
+      username:
+        example: newuser
+        type: string
+    type: object
+  controller.swagRentalReq:
+    properties:
+      borrower_id:
+        type: string
+      device_udids:
+        items:
+          type: string
+        type: array
+      expected_return:
+        example: "2025-12-31"
+        type: string
+      notes:
+        type: string
+      purpose:
+        type: string
+    type: object
+  controller.swagReturnReq:
+    properties:
+      checklist:
+        additionalProperties: true
+        type: object
+      notes:
+        type: string
+    type: object
+  controller.swagSetupReq:
+    properties:
+      display_name:
+        example: Admin
+        type: string
+      password:
+        example: secret123
+        type: string
+      username:
+        example: admin
+        type: string
+    type: object
+  controller.swagSyncAppsResp:
+    properties:
+      ok:
+        type: boolean
+      synced:
+        type: integer
+    type: object
+  controller.swagSyncCountResp:
+    properties:
+      count:
+        type: integer
+    type: object
+  controller.swagSystemStatus:
+    properties:
+      initialized:
+        example: true
+        type: boolean
+    type: object
+  controller.swagUserListItem:
+    properties:
+      display_name:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      role:
+        type: string
+      username:
+        type: string
+    type: object
+  controller.swagUserUpdateReq:
+    properties:
+      display_name:
+        type: string
+      is_active:
+        type: boolean
+      password:
+        type: string
+      role:
+        type: string
+    type: object
+  controller.swagWSConfig:
+    properties:
+      backend_relay:
+        example: true
+        type: boolean
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: 行動裝置管理系統 API — 裝置管控、資產管理、借用流程、App 派發
+  title: MDM Server API
+  version: "2.0"
+paths:
+  /api/assets:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: 依裝置 UDID 篩選
+        example: devices-list
+        in: query
+        name: device_udid
+        type: string
+      - description: 新增資產（POST）
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/controller.swagAssetReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'GET: {assets: [...]}, POST: {id: ...}'
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controller.swagError'
+      security:
+      - BearerAuth: []
+      summary: 資產列表 / 新增資產
+      tags:
+      - Asset
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 依裝置 UDID 篩選
+        example: devices-list
+        in: query
+        name: device_udid
+        type: string
+      - description: 新增資產（POST）
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/controller.swagAssetReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'GET: {assets: [...]}, POST: {id: ...}'
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controller.swagError'
+      security:
+      - BearerAuth: []
+      summary: 資產列表 / 新增資產
+      tags:
+      - Asset
+  /api/assets/{id}:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: 資產 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新欄位（PUT）
+        in: body
+        name: body
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.swagOK'
+      security:
+      - BearerAuth: []
+      summary: 更新 / 刪除資產
+      tags:
+      - Asset
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 資產 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新欄位（PUT）
+        in: body
+        name: body
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.swagOK'
+      security:
+      - BearerAuth: []
+      summary: 更新 / 刪除資產
+      tags:
+      - Asset
+  /api/categories:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: 新增分類（POST）
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/controller.swagCategoryReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'GET: {categories: [...]}, POST: {id: ...}'
+          schema:
+            additionalProperties:
+              items:
+                $ref: '#/definitions/controller.swagCategoryItem'
+              type: array
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 分類列表（樹狀排序）/ 新增分類
+      tags:
+      - Category
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 新增分類（POST）
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/controller.swagCategoryReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'GET: {categories: [...]}, POST: {id: ...}'
+          schema:
+            additionalProperties:
+              items:
+                $ref: '#/definitions/controller.swagCategoryItem'
+              type: array
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 分類列表（樹狀排序）/ 新增分類
+      tags:
+      - Category
+  /api/categories/{id}:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: 分類 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新名稱（PUT）
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/controller.swagCategoryUpdateReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.swagOK'
+      security:
+      - BearerAuth: []
+      summary: 更新 / 刪除分類
+      tags:
+      - Category
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 分類 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新名稱（PUT）
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/controller.swagCategoryUpdateReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.swagOK'
+      security:
+      - BearerAuth: []
+      summary: 更新 / 刪除分類
+      tags:
+      - Category
+  /api/device-apps:
+    get:
+      parameters:
+      - description: 裝置 UDID
+        in: query
+        name: device_udid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: '{device_apps: [...]}'
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controller.swagError'
+      security:
+      - BearerAuth: []
+      summary: 查詢裝置已安裝 App
+      tags:
+      - App
+  /api/device-apps/install:
+    post:
+      consumes:
+      - application/json
+      description: 向 MDM 發送 InstallApplication 指令，VPP App 會先指派授權
+      parameters:
+      - description: App ID + 裝置 UDID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/controller.swagAppActionReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.swagCommandResp'
+        "404":
+          description: App 不存在
+          schema:
+            $ref: '#/definitions/controller.swagError'
+        "409":
+          description: 已安裝或超過授權數量
+          schema:
+            $ref: '#/definitions/controller.swagError'
+      security:
+      - BearerAuth: []
+      summary: 安裝 App 到裝置
+      tags:
+      - App
+  /api/device-apps/uninstall:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: App ID + 裝置 UDID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/controller.swagAppActionReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.swagCommandResp'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controller.swagError'
+      security:
+      - BearerAuth: []
+      summary: 移除裝置上的 App
+      tags:
+      - App
+  /api/device-apps/update:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: App ID + 裝置 UDID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/controller.swagAppActionReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.swagCommandResp'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controller.swagError'
+      security:
+      - BearerAuth: []
+      summary: 更新裝置上的 App
+      tags:
+      - App
+  /api/device-status:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: UDID + 狀態
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/controller.swagDeviceStatusReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.swagOK'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controller.swagError'
+      security:
+      - BearerAuth: []
+      summary: 更新裝置資產狀態
+      tags:
+      - Asset
+  /api/devices-available:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.swagDeviceAvailResp'
+      security:
+      - BearerAuth: []
+      summary: 可借用裝置列表
+      tags:
+      - Device
+  /api/devices-list:
+    get:
+      parameters:
+      - description: 關鍵字篩選
+        in: query
+        name: filter
+        type: string
+      - description: 分類 ID
+        in: query
+        name: category_id
+        type: string
+      - description: 保管人 ID
+        in: query
+        name: custodian_id
+        type: string
+      - description: 借用狀態
+        in: query
+        name: rental_status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.swagDeviceListResp'
+      security:
+      - BearerAuth: []
+      summary: 裝置列表（含資產與借用狀態）
+      tags:
+      - Device
+  /api/devices/{udid}:
+    get:
+      parameters:
+      - description: 裝置 UDID
+        in: path
+        name: udid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.swagDevice'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controller.swagError'
+      security:
+      - BearerAuth: []
+      summary: 依 UDID 取得裝置詳細資訊
+      tags:
+      - Device
+  /api/itunes-lookup:
+    get:
+      parameters:
+      - description: Bundle ID
+        in: query
+        name: bundleId
+        type: string
+      - description: iTunes Store ID
+        in: query
+        name: id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: iTunes Lookup（代理 Apple API）
+      tags:
+      - App
+  /api/itunes-search:
+    get:
+      parameters:
+      - description: 搜尋關鍵字
+        in: query
+        name: term
+        required: true
+        type: string
+      - default: 10
+        description: 結果數量上限
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: iTunes 搜尋（代理 Apple API）
+      tags:
+      - App
+  /api/login:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 登入帳密
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/controller.swagLoginReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.swagLoginResp'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controller.swagError'
+        "403":
+          description: 帳號未啟用
+          schema:
+            $ref: '#/definitions/controller.swagError'
+      summary: 使用者登入
+      tags:
+      - Auth
+  /api/logout:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.swagOK'
+      summary: 使用者登出
+      tags:
+      - Auth
+  /api/managed-apps:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: 新增 App（POST）
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/controller.swagManagedAppReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'GET: {apps: [...]}, POST: {id: ...}'
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: 重複
+          schema:
+            $ref: '#/definitions/controller.swagError'
+      security:
+      - BearerAuth: []
+      summary: 受管 App 列表 / 新增受管 App
+      tags:
+      - App
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 新增 App（POST）
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/controller.swagManagedAppReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'GET: {apps: [...]}, POST: {id: ...}'
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: 重複
+          schema:
+            $ref: '#/definitions/controller.swagError'
+      security:
+      - BearerAuth: []
+      summary: 受管 App 列表 / 新增受管 App
+      tags:
+      - App
+  /api/managed-apps/{id}:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: App ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新欄位（PUT）
+        in: body
+        name: body
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.swagOK'
+      security:
+      - BearerAuth: []
+      summary: 更新 / 刪除受管 App
+      tags:
+      - App
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: App ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新欄位（PUT）
+        in: body
+        name: body
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.swagOK'
+      security:
+      - BearerAuth: []
+      summary: 更新 / 刪除受管 App
+      tags:
+      - App
+  /api/me:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.swagMeResp'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controller.swagError'
+      security:
+      - BearerAuth: []
+      summary: 取得目前登入者資訊
+      tags:
+      - Auth
+  /api/notifications:
+    get:
+      parameters:
+      - description: 事件類型篩選
+        in: query
+        name: event
+        type: string
+      - description: 關聯 ID
+        in: query
+        name: reference_id
+        type: string
+      - default: 50
+        description: 數量上限
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: '{notifications: [...]}'
+          schema:
+            additionalProperties:
+              items:
+                $ref: '#/definitions/controller.swagNotificationItem'
+              type: array
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 通知列表
+      tags:
+      - Notification
+  /api/profiles:
+    get:
+      consumes:
+      - multipart/form-data
+      parameters:
+      - description: mobileconfig 檔案（POST）
+        in: formData
+        name: file
+        type: file
+      - description: 描述檔名稱（POST）
+        in: formData
+        name: name
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'GET: {profiles: [...]}, POST: {id, name, filename, size}'
+          schema:
+            additionalProperties:
+              items:
+                $ref: '#/definitions/controller.swagProfileItem'
+              type: array
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 描述檔列表 / 上傳描述檔
+      tags:
+      - Profile
+    post:
+      consumes:
+      - multipart/form-data
+      parameters:
+      - description: mobileconfig 檔案（POST）
+        in: formData
+        name: file
+        type: file
+      - description: 描述檔名稱（POST）
+        in: formData
+        name: name
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'GET: {profiles: [...]}, POST: {id, name, filename, size}'
+          schema:
+            additionalProperties:
+              items:
+                $ref: '#/definitions/controller.swagProfileItem'
+              type: array
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 描述檔列表 / 上傳描述檔
+      tags:
+      - Profile
+  /api/profiles/{id}:
+    delete:
+      parameters:
+      - description: 描述檔 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: GET 回傳 base64 內容
+          schema:
+            $ref: '#/definitions/controller.swagProfileContentResp'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controller.swagError'
+      security:
+      - BearerAuth: []
+      summary: 取得描述檔內容（base64）/ 刪除描述檔
+      tags:
+      - Profile
+    get:
+      parameters:
+      - description: 描述檔 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: GET 回傳 base64 內容
+          schema:
+            $ref: '#/definitions/controller.swagProfileContentResp'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controller.swagError'
+      security:
+      - BearerAuth: []
+      summary: 取得描述檔內容（base64）/ 刪除描述檔
+      tags:
+      - Profile
+  /api/register:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 註冊資訊
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/controller.swagRegisterReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.swagOK'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controller.swagError'
+        "409":
+          description: 帳號已存在
+          schema:
+            $ref: '#/definitions/controller.swagError'
+      summary: 使用者自行註冊（需等待管理員啟用）
+      tags:
+      - System
+  /api/rentals:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: 狀態篩選
+        enum:
+        - pending
+        - approved
+        - active
+        - returned
+        - rejected
+        in: query
+        name: status
+        type: string
+      - description: 裝置 UDID
+        in: query
+        name: device_udid
+        type: string
+      - description: 顯示已歸檔
+        enum:
+        - "true"
+        - "false"
+        in: query
+        name: show_archived
+        type: string
+      - description: 建立借用單（POST）
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/controller.swagRentalReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'GET: {rentals: [...]}, POST: {ids, count, rental_number}'
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: 裝置不可用
+          schema:
+            $ref: '#/definitions/controller.swagError'
+      security:
+      - BearerAuth: []
+      summary: 借用單列表 / 建立借用單
+      tags:
+      - Rental
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 狀態篩選
+        enum:
+        - pending
+        - approved
+        - active
+        - returned
+        - rejected
+        in: query
+        name: status
+        type: string
+      - description: 裝置 UDID
+        in: query
+        name: device_udid
+        type: string
+      - description: 顯示已歸檔
+        enum:
+        - "true"
+        - "false"
+        in: query
+        name: show_archived
+        type: string
+      - description: 建立借用單（POST）
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/controller.swagRentalReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'GET: {rentals: [...]}, POST: {ids, count, rental_number}'
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: 裝置不可用
+          schema:
+            $ref: '#/definitions/controller.swagError'
+      security:
+      - BearerAuth: []
+      summary: 借用單列表 / 建立借用單
+      tags:
+      - Rental
+  /api/rentals-archive:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 借用單 ID 列表
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/controller.swagArchiveReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.swagOK'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controller.swagError'
+      security:
+      - BearerAuth: []
+      summary: 歸檔借用單
+      tags:
+      - Rental
+  /api/rentals/{id}:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: 借用單 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 歸還資訊（return 時使用）
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/controller.swagReturnReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.swagOK'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controller.swagError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controller.swagError'
+      security:
+      - BearerAuth: []
+      summary: 借用單操作：approve / activate / return / reject / delete
+      tags:
+      - Rental
+  /api/rentals/{id}/{action}:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 借用單 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 操作
+        enum:
+        - approve
+        - activate
+        - return
+        - reject
+        in: path
+        name: action
+        type: string
+      - description: 歸還資訊（return 時使用）
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/controller.swagReturnReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.swagOK'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controller.swagError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controller.swagError'
+      security:
+      - BearerAuth: []
+      summary: 借用單操作：approve / activate / return / reject / delete
+      tags:
+      - Rental
+  /api/setup:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 管理員帳號資訊
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/controller.swagSetupReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.swagOK'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controller.swagError'
+        "403":
+          description: 系統已初始化
+          schema:
+            $ref: '#/definitions/controller.swagError'
+      summary: 初始化系統（建立第一位管理員）
+      tags:
+      - System
+  /api/sync-device-apps:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.swagSyncAppsResp'
+      security:
+      - BearerAuth: []
+      summary: 同步所有裝置已安裝 App 到資料庫
+      tags:
+      - App
+  /api/sync-device-info:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.swagSyncCountResp'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: 向所有裝置發送 DeviceInformation 查詢
+      tags:
+      - Device
+  /api/system-status:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.swagSystemStatus'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controller.swagError'
+      summary: 系統初始化狀態
+      tags:
+      - System
+  /api/users-list:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: '{users: [...]}'
+          schema:
+            additionalProperties:
+              items:
+                $ref: '#/definitions/controller.swagUserListItem'
+              type: array
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 使用者列表
+      tags:
+      - User
+  /api/users/{id}:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: 使用者 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新欄位（PUT）
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/controller.swagUserUpdateReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.swagOK'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: 更新 / 刪除使用者（需 sys_admin）
+      tags:
+      - User
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 使用者 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新欄位（PUT）
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/controller.swagUserUpdateReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.swagOK'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: 更新 / 刪除使用者（需 sys_admin）
+      tags:
+      - User
+  /api/ws-config:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controller.swagWSConfig'
+        "401":
+          description: Unauthorized
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: WebSocket 設定
+      tags:
+      - System
+  /health:
+    get:
+      responses:
+        "200":
+          description: ok
+          schema:
+            type: string
+      summary: 健康檢查
+      tags:
+      - System
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

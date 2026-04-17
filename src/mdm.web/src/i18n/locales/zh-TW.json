@@ -6,15 +6,23 @@
   },
   "nav": {
     "dashboard": "儀表板",
-    "devices": "裝置管理",
+    "group_asset": "財產管理",
+    "assets": "財產清冊",
+    "categories": "資產品分類",
+    "group_mdm": "裝置管理",
+    "devices": "裝置列表",
     "commands": "指令中心",
     "apps": "App 管理",
     "profiles": "描述檔",
-    "rentals": "租借管理",
     "events": "即時事件",
-    "categories": "裝置分類",
+    "group_rental": "租借系統",
+    "rentals": "租借管理",
+    "notifications": "通知記錄",
+    "group_admin": "系統管理",
     "users": "使用者管理",
-    "audit": "稽核日誌"
+    "audit": "稽核日誌",
+    "forbidden": "無存取權限",
+    "forbidden_desc": "您沒有此模組的存取權限，請聯繫管理員。"
   },
   "common": {
     "search": "搜尋...",

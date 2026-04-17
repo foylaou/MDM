@@ -1,0 +1,2553 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "行動裝置管理系統 API — 裝置管控、資產管理、借用流程、App 派發",
+        "title": "MDM Server API",
+        "contact": {},
+        "version": "2.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/",
+    "paths": {
+        "/api/assets": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Asset"
+                ],
+                "summary": "資產列表 / 新增資產",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "devices-list",
+                        "description": "依裝置 UDID 篩選",
+                        "name": "device_udid",
+                        "in": "query"
+                    },
+                    {
+                        "description": "新增資產（POST）",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagAssetReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "GET: {assets: [...]}, POST: {id: ...}",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagError"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Asset"
+                ],
+                "summary": "資產列表 / 新增資產",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "devices-list",
+                        "description": "依裝置 UDID 篩選",
+                        "name": "device_udid",
+                        "in": "query"
+                    },
+                    {
+                        "description": "新增資產（POST）",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagAssetReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "GET: {assets: [...]}, POST: {id: ...}",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/assets/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Asset"
+                ],
+                "summary": "更新 / 刪除資產",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "資產 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新欄位（PUT）",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagOK"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Asset"
+                ],
+                "summary": "更新 / 刪除資產",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "資產 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新欄位（PUT）",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagOK"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/categories": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Category"
+                ],
+                "summary": "分類列表（樹狀排序）/ 新增分類",
+                "parameters": [
+                    {
+                        "description": "新增分類（POST）",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagCategoryReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "GET: {categories: [...]}, POST: {id: ...}",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/definitions/controller.swagCategoryItem"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Category"
+                ],
+                "summary": "分類列表（樹狀排序）/ 新增分類",
+                "parameters": [
+                    {
+                        "description": "新增分類（POST）",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagCategoryReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "GET: {categories: [...]}, POST: {id: ...}",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/definitions/controller.swagCategoryItem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/categories/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Category"
+                ],
+                "summary": "更新 / 刪除分類",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "分類 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新名稱（PUT）",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagCategoryUpdateReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagOK"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Category"
+                ],
+                "summary": "更新 / 刪除分類",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "分類 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新名稱（PUT）",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagCategoryUpdateReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagOK"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/device-apps": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "App"
+                ],
+                "summary": "查詢裝置已安裝 App",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "裝置 UDID",
+                        "name": "device_udid",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "{device_apps: [...]}",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/device-apps/install": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "向 MDM 發送 InstallApplication 指令，VPP App 會先指派授權",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "App"
+                ],
+                "summary": "安裝 App 到裝置",
+                "parameters": [
+                    {
+                        "description": "App ID + 裝置 UDID",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagAppActionReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagCommandResp"
+                        }
+                    },
+                    "404": {
+                        "description": "App 不存在",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagError"
+                        }
+                    },
+                    "409": {
+                        "description": "已安裝或超過授權數量",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/device-apps/uninstall": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "App"
+                ],
+                "summary": "移除裝置上的 App",
+                "parameters": [
+                    {
+                        "description": "App ID + 裝置 UDID",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagAppActionReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagCommandResp"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/device-apps/update": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "App"
+                ],
+                "summary": "更新裝置上的 App",
+                "parameters": [
+                    {
+                        "description": "App ID + 裝置 UDID",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagAppActionReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagCommandResp"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/device-status": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Asset"
+                ],
+                "summary": "更新裝置資產狀態",
+                "parameters": [
+                    {
+                        "description": "UDID + 狀態",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagDeviceStatusReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagOK"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/devices-available": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Device"
+                ],
+                "summary": "可借用裝置列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagDeviceAvailResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/devices-list": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Device"
+                ],
+                "summary": "裝置列表（含資產與借用狀態）",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "關鍵字篩選",
+                        "name": "filter",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "分類 ID",
+                        "name": "category_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "保管人 ID",
+                        "name": "custodian_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "借用狀態",
+                        "name": "rental_status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagDeviceListResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/devices/{udid}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Device"
+                ],
+                "summary": "依 UDID 取得裝置詳細資訊",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "裝置 UDID",
+                        "name": "udid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagDevice"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/itunes-lookup": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "App"
+                ],
+                "summary": "iTunes Lookup（代理 Apple API）",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bundle ID",
+                        "name": "bundleId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "iTunes Store ID",
+                        "name": "id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/itunes-search": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "App"
+                ],
+                "summary": "iTunes 搜尋（代理 Apple API）",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "搜尋關鍵字",
+                        "name": "term",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "結果數量上限",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/login": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "使用者登入",
+                "parameters": [
+                    {
+                        "description": "登入帳密",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagLoginReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagLoginResp"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagError"
+                        }
+                    },
+                    "403": {
+                        "description": "帳號未啟用",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/logout": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "使用者登出",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagOK"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/managed-apps": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "App"
+                ],
+                "summary": "受管 App 列表 / 新增受管 App",
+                "parameters": [
+                    {
+                        "description": "新增 App（POST）",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagManagedAppReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "GET: {apps: [...]}, POST: {id: ...}",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "409": {
+                        "description": "重複",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagError"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "App"
+                ],
+                "summary": "受管 App 列表 / 新增受管 App",
+                "parameters": [
+                    {
+                        "description": "新增 App（POST）",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagManagedAppReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "GET: {apps: [...]}, POST: {id: ...}",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "409": {
+                        "description": "重複",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/managed-apps/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "App"
+                ],
+                "summary": "更新 / 刪除受管 App",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "App ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新欄位（PUT）",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagOK"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "App"
+                ],
+                "summary": "更新 / 刪除受管 App",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "App ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新欄位（PUT）",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagOK"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/me": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "取得目前登入者資訊",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagMeResp"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/notifications": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notification"
+                ],
+                "summary": "通知列表",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "事件類型篩選",
+                        "name": "event",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "關聯 ID",
+                        "name": "reference_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 50,
+                        "description": "數量上限",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "{notifications: [...]}",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/definitions/controller.swagNotificationItem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/profiles": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Profile"
+                ],
+                "summary": "描述檔列表 / 上傳描述檔",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "mobileconfig 檔案（POST）",
+                        "name": "file",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "描述檔名稱（POST）",
+                        "name": "name",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "GET: {profiles: [...]}, POST: {id, name, filename, size}",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/definitions/controller.swagProfileItem"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Profile"
+                ],
+                "summary": "描述檔列表 / 上傳描述檔",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "mobileconfig 檔案（POST）",
+                        "name": "file",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "描述檔名稱（POST）",
+                        "name": "name",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "GET: {profiles: [...]}, POST: {id, name, filename, size}",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/definitions/controller.swagProfileItem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/profiles/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Profile"
+                ],
+                "summary": "取得描述檔內容（base64）/ 刪除描述檔",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "描述檔 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "GET 回傳 base64 內容",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagProfileContentResp"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagError"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Profile"
+                ],
+                "summary": "取得描述檔內容（base64）/ 刪除描述檔",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "描述檔 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "GET 回傳 base64 內容",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagProfileContentResp"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/register": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System"
+                ],
+                "summary": "使用者自行註冊（需等待管理員啟用）",
+                "parameters": [
+                    {
+                        "description": "註冊資訊",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagRegisterReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagOK"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagError"
+                        }
+                    },
+                    "409": {
+                        "description": "帳號已存在",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/rentals": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rental"
+                ],
+                "summary": "借用單列表 / 建立借用單",
+                "parameters": [
+                    {
+                        "enum": [
+                            "pending",
+                            "approved",
+                            "active",
+                            "returned",
+                            "rejected"
+                        ],
+                        "type": "string",
+                        "description": "狀態篩選",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "裝置 UDID",
+                        "name": "device_udid",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "true",
+                            "false"
+                        ],
+                        "type": "string",
+                        "description": "顯示已歸檔",
+                        "name": "show_archived",
+                        "in": "query"
+                    },
+                    {
+                        "description": "建立借用單（POST）",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagRentalReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "GET: {rentals: [...]}, POST: {ids, count, rental_number}",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "409": {
+                        "description": "裝置不可用",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagError"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rental"
+                ],
+                "summary": "借用單列表 / 建立借用單",
+                "parameters": [
+                    {
+                        "enum": [
+                            "pending",
+                            "approved",
+                            "active",
+                            "returned",
+                            "rejected"
+                        ],
+                        "type": "string",
+                        "description": "狀態篩選",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "裝置 UDID",
+                        "name": "device_udid",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "true",
+                            "false"
+                        ],
+                        "type": "string",
+                        "description": "顯示已歸檔",
+                        "name": "show_archived",
+                        "in": "query"
+                    },
+                    {
+                        "description": "建立借用單（POST）",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagRentalReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "GET: {rentals: [...]}, POST: {ids, count, rental_number}",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "409": {
+                        "description": "裝置不可用",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/rentals-archive": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rental"
+                ],
+                "summary": "歸檔借用單",
+                "parameters": [
+                    {
+                        "description": "借用單 ID 列表",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagArchiveReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagOK"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/rentals/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rental"
+                ],
+                "summary": "借用單操作：approve / activate / return / reject / delete",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "借用單 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "歸還資訊（return 時使用）",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagReturnReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagOK"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/rentals/{id}/{action}": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rental"
+                ],
+                "summary": "借用單操作：approve / activate / return / reject / delete",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "借用單 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "approve",
+                            "activate",
+                            "return",
+                            "reject"
+                        ],
+                        "type": "string",
+                        "description": "操作",
+                        "name": "action",
+                        "in": "path"
+                    },
+                    {
+                        "description": "歸還資訊（return 時使用）",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagReturnReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagOK"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/setup": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System"
+                ],
+                "summary": "初始化系統（建立第一位管理員）",
+                "parameters": [
+                    {
+                        "description": "管理員帳號資訊",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagSetupReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagOK"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagError"
+                        }
+                    },
+                    "403": {
+                        "description": "系統已初始化",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/sync-device-apps": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "App"
+                ],
+                "summary": "同步所有裝置已安裝 App 到資料庫",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagSyncAppsResp"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/sync-device-info": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Device"
+                ],
+                "summary": "向所有裝置發送 DeviceInformation 查詢",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagSyncCountResp"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/system-status": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System"
+                ],
+                "summary": "系統初始化狀態",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagSystemStatus"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/users-list": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "User"
+                ],
+                "summary": "使用者列表",
+                "responses": {
+                    "200": {
+                        "description": "{users: [...]}",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/definitions/controller.swagUserListItem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/users/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "User"
+                ],
+                "summary": "更新 / 刪除使用者（需 sys_admin）",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "使用者 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新欄位（PUT）",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagUserUpdateReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagOK"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "User"
+                ],
+                "summary": "更新 / 刪除使用者（需 sys_admin）",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "使用者 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新欄位（PUT）",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagUserUpdateReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagOK"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/ws-config": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System"
+                ],
+                "summary": "WebSocket 設定",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controller.swagWSConfig"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/health": {
+            "get": {
+                "tags": [
+                    "System"
+                ],
+                "summary": "健康檢查",
+                "responses": {
+                    "200": {
+                        "description": "ok",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "controller.swagAppActionReq": {
+            "type": "object",
+            "properties": {
+                "app_id": {
+                    "type": "string"
+                },
+                "udid": {
+                    "type": "string"
+                }
+            }
+        },
+        "controller.swagArchiveReq": {
+            "type": "object",
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "controller.swagAssetReq": {
+            "type": "object",
+            "properties": {
+                "acquired_date": {
+                    "type": "string",
+                    "example": "2025-01-01"
+                },
+                "asset_category": {
+                    "type": "string"
+                },
+                "asset_number": {
+                    "type": "string"
+                },
+                "borrow_date": {
+                    "type": "string",
+                    "example": "2025-06-01"
+                },
+                "category_id": {
+                    "type": "string"
+                },
+                "custodian_id": {
+                    "type": "string"
+                },
+                "custodian_name": {
+                    "type": "string"
+                },
+                "device_udid": {
+                    "type": "string"
+                },
+                "location": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "purpose": {
+                    "type": "string"
+                },
+                "quantity": {
+                    "type": "integer"
+                },
+                "spec": {
+                    "type": "string"
+                },
+                "unit": {
+                    "type": "string"
+                },
+                "unit_price": {
+                    "type": "number"
+                }
+            }
+        },
+        "controller.swagCategoryItem": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "level": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "parent_id": {
+                    "type": "string"
+                },
+                "sort_order": {
+                    "type": "integer"
+                }
+            }
+        },
+        "controller.swagCategoryReq": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "parent_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "controller.swagCategoryUpdateReq": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "controller.swagCommandResp": {
+            "type": "object",
+            "properties": {
+                "command_uuid": {
+                    "type": "string"
+                },
+                "ok": {
+                    "type": "boolean"
+                },
+                "raw_response": {}
+            }
+        },
+        "controller.swagDevice": {
+            "type": "object",
+            "properties": {
+                "battery_level": {
+                    "type": "number"
+                },
+                "device_name": {
+                    "type": "string"
+                },
+                "enrollment_status": {
+                    "type": "string"
+                },
+                "is_lost_mode": {
+                    "type": "boolean"
+                },
+                "is_supervised": {
+                    "type": "boolean"
+                },
+                "last_seen": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "os_version": {
+                    "type": "string"
+                },
+                "serial_number": {
+                    "type": "string"
+                },
+                "udid": {
+                    "type": "string"
+                }
+            }
+        },
+        "controller.swagDeviceAvailItem": {
+            "type": "object",
+            "properties": {
+                "asset_status": {
+                    "type": "string"
+                },
+                "device_name": {
+                    "type": "string"
+                },
+                "enrollment_status": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "os_version": {
+                    "type": "string"
+                },
+                "serial_number": {
+                    "type": "string"
+                },
+                "udid": {
+                    "type": "string"
+                }
+            }
+        },
+        "controller.swagDeviceAvailResp": {
+            "type": "object",
+            "properties": {
+                "devices": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controller.swagDeviceAvailItem"
+                    }
+                }
+            }
+        },
+        "controller.swagDeviceListItem": {
+            "type": "object",
+            "properties": {
+                "asset_status": {
+                    "type": "string"
+                },
+                "battery_level": {
+                    "type": "number"
+                },
+                "category_id": {
+                    "type": "string"
+                },
+                "category_name": {
+                    "type": "string"
+                },
+                "custodian_id": {
+                    "type": "string"
+                },
+                "custodian_name": {
+                    "type": "string"
+                },
+                "device_name": {
+                    "type": "string"
+                },
+                "enrollment_status": {
+                    "type": "string"
+                },
+                "is_lost_mode": {
+                    "type": "boolean"
+                },
+                "is_supervised": {
+                    "type": "boolean"
+                },
+                "last_seen": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "os_version": {
+                    "type": "string"
+                },
+                "serial_number": {
+                    "type": "string"
+                },
+                "udid": {
+                    "type": "string"
+                }
+            }
+        },
+        "controller.swagDeviceListResp": {
+            "type": "object",
+            "properties": {
+                "devices": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controller.swagDeviceListItem"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "controller.swagDeviceStatusReq": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "available",
+                        "faulty",
+                        "repairing",
+                        "retired"
+                    ],
+                    "example": "available"
+                },
+                "udid": {
+                    "type": "string",
+                    "example": "00008101-001234560A12001E"
+                }
+            }
+        },
+        "controller.swagError": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "error message"
+                }
+            }
+        },
+        "controller.swagLoginReq": {
+            "type": "object",
+            "properties": {
+                "password": {
+                    "type": "string",
+                    "example": "secret123"
+                },
+                "username": {
+                    "type": "string",
+                    "example": "admin"
+                }
+            }
+        },
+        "controller.swagLoginResp": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string"
+                },
+                "module_permissions": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "user": {
+                    "$ref": "#/definitions/controller.swagLoginUser"
+                }
+            }
+        },
+        "controller.swagLoginUser": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "system_role": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "controller.swagManagedAppReq": {
+            "type": "object",
+            "properties": {
+                "app_type": {
+                    "type": "string",
+                    "enum": [
+                        "vpp",
+                        "enterprise"
+                    ],
+                    "example": "vpp"
+                },
+                "bundle_id": {
+                    "type": "string"
+                },
+                "icon_url": {
+                    "type": "string"
+                },
+                "itunes_store_id": {
+                    "type": "string"
+                },
+                "manifest_url": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "purchased_qty": {
+                    "type": "integer"
+                }
+            }
+        },
+        "controller.swagMeResp": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "module_permissions": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "role": {
+                    "type": "string"
+                },
+                "system_role": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "controller.swagNotificationItem": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "event": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "recipient": {
+                    "type": "string"
+                },
+                "reference_id": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "subject": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "controller.swagOK": {
+            "type": "object",
+            "properties": {
+                "ok": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "controller.swagProfileContentResp": {
+            "type": "object",
+            "properties": {
+                "content_base64": {
+                    "type": "string"
+                },
+                "filename": {
+                    "type": "string"
+                }
+            }
+        },
+        "controller.swagProfileItem": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "filename": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "uploaded_by": {
+                    "type": "string"
+                }
+            }
+        },
+        "controller.swagRegisterReq": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string",
+                    "example": "New User"
+                },
+                "password": {
+                    "type": "string",
+                    "example": "secret123"
+                },
+                "username": {
+                    "type": "string",
+                    "example": "newuser"
+                }
+            }
+        },
+        "controller.swagRentalReq": {
+            "type": "object",
+            "properties": {
+                "borrower_id": {
+                    "type": "string"
+                },
+                "device_udids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "expected_return": {
+                    "type": "string",
+                    "example": "2025-12-31"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "purpose": {
+                    "type": "string"
+                }
+            }
+        },
+        "controller.swagReturnReq": {
+            "type": "object",
+            "properties": {
+                "checklist": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "notes": {
+                    "type": "string"
+                }
+            }
+        },
+        "controller.swagSetupReq": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string",
+                    "example": "Admin"
+                },
+                "password": {
+                    "type": "string",
+                    "example": "secret123"
+                },
+                "username": {
+                    "type": "string",
+                    "example": "admin"
+                }
+            }
+        },
+        "controller.swagSyncAppsResp": {
+            "type": "object",
+            "properties": {
+                "ok": {
+                    "type": "boolean"
+                },
+                "synced": {
+                    "type": "integer"
+                }
+            }
+        },
+        "controller.swagSyncCountResp": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "controller.swagSystemStatus": {
+            "type": "object",
+            "properties": {
+                "initialized": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "controller.swagUserListItem": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "controller.swagUserUpdateReq": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "password": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                }
+            }
+        },
+        "controller.swagWSConfig": {
+            "type": "object",
+            "properties": {
+                "backend_relay": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
+    }
+}

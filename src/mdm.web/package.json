@@ -13,7 +13,7 @@
     "@bufbuild/protobuf": "1.10.0",
     "@connectrpc/connect": "1.6.1",
     "@connectrpc/connect-web": "1.6.1",
-    "axios": "^1.13.6",
+    "axios": "1.15.0",
     "daisyui": "^5.5.19",
     "driver.js": "^1.4.0",
     "file-saver": "^2.0.5",
@@ -23,7 +23,6 @@
     "react-dom": "^19.2.0",
     "react-i18next": "^16.5.8",
     "react-router-dom": "^7.13.0",
-    "xlsx": "^0.18.5",
     "zustand": "^5.0.12"
   },
   "devDependencies": {
@@ -34,7 +33,7 @@
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
-    "eslint": "^9.39.1",
+    "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
@@ -42,5 +41,10 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
     "vite": "^7.2.4"
+  },
+  "pnpm": {
+    "overrides": {
+      "brace-expansion": ">=5.0.5"
+    }
   }
 }

@@ -162,8 +162,8 @@ func (s *CommandService) ClearPasscode(ctx context.Context, req *connect.Request
 func (s *CommandService) InstallApp(ctx context.Context, req *connect.Request[mdmv1.InstallAppRequest]) (*connect.Response[mdmv1.CommandResponse], error) {
 	s.auditAction(ctx, "install_app", fmt.Sprint(req.Msg.Udids), req.Msg.ItunesStoreId)
 
-	// Assign VPP licenses before installing
-	if req.Msg.AssignVppLicense && s.vpp != nil {
+	// Always assign VPP licenses for VPP apps (itunes_store_id implies VPP)
+	if s.vpp != nil {
 		var serialNumbers []string
 		for _, udid := range req.Msg.Udids {
 			dev, err := s.devices.GetByUDID(ctx, udid)

@@ -37,3 +37,9 @@ var Migration011SQL string
 
 //go:embed migrations/012_asset_status.up.sql
 var Migration012SQL string
+
+//go:embed migrations/013_pending_app_commands.up.sql
+var Migration013SQL string
+
+//go:embed migrations/014_module_permissions.up.sql
+var Migration014SQL string

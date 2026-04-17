@@ -22,18 +22,24 @@ const (
 )
 
 type Claims struct {
-	UserID   string `json:"uid"`
-	Username string `json:"sub"`
-	Role     string `json:"role"`
+	UserID     string `json:"uid"`
+	Username   string `json:"sub"`
+	Role       string `json:"role"`
+	SystemRole string `json:"system_role,omitempty"`
 	jwt.RegisteredClaims
 }
 
-func GenerateTokens(secret, userID, username, role string) (access, refresh string, expiresAt int64, err error) {
+func GenerateTokens(secret, userID, username, role string, opts ...string) (access, refresh string, expiresAt int64, err error) {
+	systemRole := ""
+	if len(opts) > 0 {
+		systemRole = opts[0]
+	}
 	exp := time.Now().Add(24 * time.Hour)
 	accessClaims := &Claims{
-		UserID:   userID,
-		Username: username,
-		Role:     role,
+		UserID:     userID,
+		Username:   username,
+		Role:       role,
+		SystemRole: systemRole,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(exp),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -45,9 +51,10 @@ func GenerateTokens(secret, userID, username, role string) (access, refresh stri
 	}
 
 	refreshClaims := &Claims{
-		UserID:   userID,
-		Username: username,
-		Role:     role,
+		UserID:     userID,
+		Username:   username,
+		Role:       role,
+		SystemRole: systemRole,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(7 * 24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

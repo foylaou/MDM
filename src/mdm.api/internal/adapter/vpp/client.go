@@ -72,5 +72,23 @@ func (c *Client) manageLicenses(ctx context.Context, adamID string, serialNumber
 	}
 	defer resp.Body.Close()
 	data, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("vpp: HTTP %d: %s", resp.StatusCode, string(data))
+	}
+
+	// Validate Apple VPP response
+	var result struct {
+		Status       int    `json:"status"`
+		ErrorNumber  int    `json:"errorNumber"`
+		ErrorMessage string `json:"errorMessage"`
+	}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return "", fmt.Errorf("vpp: invalid response: %s", string(data))
+	}
+	if result.Status != 0 {
+		return "", fmt.Errorf("vpp: error %d: %s", result.ErrorNumber, result.ErrorMessage)
+	}
+
 	return string(data), nil
 }

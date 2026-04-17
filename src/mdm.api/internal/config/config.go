@@ -16,6 +16,17 @@ type Config struct {
 	VPPTokenPath string
 	WebhookPath  string
 	WebSocketURL string
+	SMTP         SMTPConfig
+}
+
+type SMTPConfig struct {
+	Host     string
+	Port     string
+	Username string
+	Password string
+	From     string
+	FromName string
+	TLS      bool
 }
 
 func Load() *Config {
@@ -33,6 +44,15 @@ func Load() *Config {
 		VPPTokenPath: envOr("VPP_TOKEN_PATH", ""),
 		WebhookPath:  envOr("WEBHOOK_PATH", "/webhook"),
 		WebSocketURL: envOr("WEBSOCKET_URL", ""),
+		SMTP: SMTPConfig{
+			Host:     envOr("SMTP_HOST", ""),
+			Port:     envOr("SMTP_PORT", "587"),
+			Username: envOr("SMTP_USERNAME", ""),
+			Password: envOr("SMTP_PASSWORD", ""),
+			From:     envOr("SMTP_FROM", ""),
+			FromName: envOr("SMTP_FROM_NAME", "MDM 管理平台"),
+			TLS:      envOr("SMTP_TLS", "true") == "true",
+		},
 	}
 }
 

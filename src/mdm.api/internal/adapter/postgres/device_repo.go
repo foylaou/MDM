@@ -120,3 +120,108 @@ func (r *DeviceRepo) List(ctx context.Context, filter string, limit int, offset 
 	}
 	return devices, total, nil
 }
+
+// ListWithAssets returns devices joined with asset/category info for the frontend device list.
+func (r *DeviceRepo) ListWithAssets(ctx context.Context, filter, categoryID, custodianID, rentalStatus, viewerUserID string) ([]*domain.DeviceListItem, error) {
+	q := `SELECT d.udid, d.serial_number, d.device_name, d.model, d.os_version,
+	             d.last_seen, d.enrollment_status, d.is_supervised, d.is_lost_mode, d.battery_level,
+	             COALESCE(a.custodian_name,'') as custodian_name,
+	             COALESCE(c.name,'') as category_name,
+	             a.category_id, a.custodian_id,
+	             COALESCE(a.asset_status,'available') as asset_status,
+	             EXISTS(SELECT 1 FROM rentals rl WHERE rl.device_udid = d.udid AND rl.status = 'active') as is_rented
+	      FROM devices d
+	      LEFT JOIN assets a ON a.device_udid = d.udid
+	      LEFT JOIN categories c ON a.category_id = c.id
+	      WHERE 1=1`
+	args := []interface{}{}
+	idx := 1
+	if filter != "" {
+		q += fmt.Sprintf(` AND (d.serial_number ILIKE $%d OR d.device_name ILIKE $%d OR d.udid ILIKE $%d)`, idx, idx, idx)
+		args = append(args, "%"+filter+"%")
+		idx++
+	}
+	if categoryID != "" {
+		q += fmt.Sprintf(` AND a.category_id = $%d`, idx)
+		args = append(args, categoryID)
+		idx++
+	}
+	if custodianID != "" {
+		q += fmt.Sprintf(` AND a.custodian_id = $%d`, idx)
+		args = append(args, custodianID)
+		idx++
+	}
+	if rentalStatus != "" {
+		q += fmt.Sprintf(` AND EXISTS (SELECT 1 FROM rentals rl WHERE rl.device_udid = d.udid AND rl.status = $%d)`, idx)
+		args = append(args, rentalStatus)
+		idx++
+	}
+	if viewerUserID != "" {
+		q += fmt.Sprintf(` AND EXISTS (SELECT 1 FROM rentals rl WHERE rl.device_udid = d.udid AND rl.borrower_id = $%d AND rl.status = 'active')`, idx)
+		args = append(args, viewerUserID)
+		idx++
+	}
+	q += ` ORDER BY d.last_seen DESC`
+
+	rows, err := r.pool.Query(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var devices []*domain.DeviceListItem
+	for rows.Next() {
+		d := &domain.DeviceListItem{}
+		var assetStatus string
+		var isRented bool
+		if err := rows.Scan(&d.UDID, &d.SerialNumber, &d.DeviceName, &d.Model, &d.OSVersion,
+			&d.LastSeen, &d.EnrollmentStatus, &d.IsSupervised, &d.IsLostMode, &d.BatteryLevel,
+			&d.CustodianName, &d.CategoryName, &d.CategoryID, &d.CustodianID,
+			&assetStatus, &isRented); err != nil {
+			continue
+		}
+		if isRented {
+			d.AssetStatus = "rented"
+		} else if d.IsLostMode {
+			d.AssetStatus = "lost"
+		} else {
+			d.AssetStatus = assetStatus
+		}
+		devices = append(devices, d)
+	}
+	return devices, nil
+}
+
+// ListAvailable returns all devices with asset status for the rental picker.
+func (r *DeviceRepo) ListAvailable(ctx context.Context) ([]*domain.DeviceListItem, error) {
+	q := `SELECT d.udid, d.serial_number, d.device_name, d.model, d.os_version,
+	             d.enrollment_status,
+	             COALESCE(a.asset_status,'available') as asset_status,
+	             EXISTS(SELECT 1 FROM rentals rl WHERE rl.device_udid = d.udid AND rl.status = 'active') as is_rented
+	      FROM devices d
+	      LEFT JOIN assets a ON a.device_udid = d.udid
+	      ORDER BY d.device_name`
+	rows, err := r.pool.Query(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var devices []*domain.DeviceListItem
+	for rows.Next() {
+		d := &domain.DeviceListItem{}
+		var assetStatus string
+		var isRented bool
+		if err := rows.Scan(&d.UDID, &d.SerialNumber, &d.DeviceName, &d.Model, &d.OSVersion,
+			&d.EnrollmentStatus, &assetStatus, &isRented); err != nil {
+			continue
+		}
+		if isRented {
+			d.AssetStatus = "rented"
+		} else {
+			d.AssetStatus = assetStatus
+		}
+		devices = append(devices, d)
+	}
+	return devices, nil
+}

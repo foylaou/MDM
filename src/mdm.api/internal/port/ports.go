@@ -47,9 +47,89 @@ type VPPClient interface {
 	RevokeLicense(ctx context.Context, adamID string, serialNumbers []string) (string, error)
 }
 
-// AssetRepository checks asset ownership (custodian).
+// AssetRepository persists assets.
 type AssetRepository interface {
 	IsCustodianOfAll(ctx context.Context, userID string, udids []string) (bool, error)
+	List(ctx context.Context, deviceUdid string) ([]*domain.Asset, error)
+	Create(ctx context.Context, asset *domain.Asset) (string, error)
+	Update(ctx context.Context, id string, fields map[string]interface{}) error
+	Delete(ctx context.Context, id string) error
+	UpdateStatus(ctx context.Context, udid string, status string) error
+}
+
+// RentalRepository persists rentals.
+type RentalRepository interface {
+	List(ctx context.Context, status, deviceUdid string, showArchived bool) ([]*domain.Rental, error)
+	Create(ctx context.Context, rental *domain.Rental) (string, error)
+	GetByID(ctx context.Context, id string) (*domain.Rental, error)
+	NextRentalNumber(ctx context.Context) (int, error)
+	UpdateStatusByNumber(ctx context.Context, rentalNumber int, fromStatus, toStatus string, approverID *string, approverName string) error
+	ActivateByNumber(ctx context.Context, rentalNumber int) error
+	ReturnByNumber(ctx context.Context, rentalNumber int, checklist []byte, notes string) error
+	DeleteByNumber(ctx context.Context, rentalNumber int) error
+	Archive(ctx context.Context, ids []string) error
+	ListDeviceUdidsByNumber(ctx context.Context, rentalNumber int) ([]string, error)
+	GetBorrowerInfo(ctx context.Context, rentalID string) (borrowerID, borrowerName string, err error)
+	CheckDeviceAvailability(ctx context.Context, udid string) (assetStatus string, isRented bool, isLostMode bool, err error)
+	ListOverdue(ctx context.Context) ([]*domain.Rental, error)
+}
+
+// AppRepository persists managed apps and device-app bindings.
+type AppRepository interface {
+	ListManagedApps(ctx context.Context) ([]*domain.ManagedApp, error)
+	GetManagedApp(ctx context.Context, id string) (*domain.ManagedApp, error)
+	CreateManagedApp(ctx context.Context, app *domain.ManagedApp) (string, error)
+	UpdateManagedApp(ctx context.Context, id string, fields map[string]interface{}) error
+	DeleteManagedApp(ctx context.Context, id string) error
+	ListDeviceApps(ctx context.Context, deviceUdid string) ([]*domain.DeviceApp, error)
+	InstalledCount(ctx context.Context, appID string) (int, error)
+	IsInstalledOn(ctx context.Context, deviceUdid, appID string) (bool, error)
+	CreatePendingCommand(ctx context.Context, cmd *domain.PendingAppCommand) error
+	DeletePendingCommand(ctx context.Context, commandUUID string) error
+	GetPendingCommand(ctx context.Context, commandUUID string) (*domain.PendingAppCommand, error)
+	AddDeviceApp(ctx context.Context, deviceUdid, appID string) error
+	RemoveDeviceApp(ctx context.Context, deviceUdid, appID string) error
+	ListBundleMap(ctx context.Context) (map[string]string, error)
+	SyncDeviceApp(ctx context.Context, deviceUdid, appID string) (bool, error)
+	ListAppsNeedingIcons(ctx context.Context) ([]struct{ ID, BundleID, ItunesID string }, error)
+	UpdateIcon(ctx context.Context, id, iconURL, itunesID string) error
+}
+
+// CategoryRepository persists categories.
+type CategoryRepository interface {
+	List(ctx context.Context) ([]*domain.Category, error)
+	Create(ctx context.Context, cat *domain.Category) (string, error)
+	GetLevel(ctx context.Context, id string) (int, error)
+	Update(ctx context.Context, id string, name string) error
+	Delete(ctx context.Context, id string) error
+}
+
+// ProfileRepository persists mobileconfig profiles.
+type ProfileRepository interface {
+	List(ctx context.Context) ([]*domain.Profile, error)
+	Create(ctx context.Context, profile *domain.Profile) (string, error)
+	GetContent(ctx context.Context, id string) (content []byte, filename string, err error)
+	Delete(ctx context.Context, id string) error
+}
+
+// PermissionRepository persists module-level permissions.
+type PermissionRepository interface {
+	GetByUserID(ctx context.Context, userID string) ([]*domain.ModulePermission, error)
+	GetByUserAndModule(ctx context.Context, userID string, module string) (*domain.ModulePermission, error)
+	Set(ctx context.Context, perm *domain.ModulePermission) error
+	Delete(ctx context.Context, userID string, module string) error
+}
+
+// NotificationRepository persists notification records.
+type NotificationRepository interface {
+	Create(ctx context.Context, notif *domain.Notification) (string, error)
+	UpdateStatus(ctx context.Context, id string, status string, errMsg string) error
+	List(ctx context.Context, event string, referenceID string, limit int) ([]*domain.Notification, error)
+}
+
+// EmailSender sends email via SMTP.
+type EmailSender interface {
+	Send(ctx context.Context, to string, subject string, htmlBody string) error
 }
 
 // EventBroker fans out MDM events to subscribers.

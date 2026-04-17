@@ -2,35 +2,114 @@ import { Link, Outlet, useLocation } from "react-router-dom";
 import { useAuthStore } from "../stores/authStore";
 import { useEventStore } from "../stores/eventStore";
 import { useEventStream } from "../hooks/useEventStream";
+import { useModulePermission } from "../hooks/useModulePermission";
 import { useTranslation } from "react-i18next";
 import { CommandTracker } from "./CommandTracker";
 import { ChangePassword } from "./ChangePassword";
 import { ViewerOnboarding } from "./ViewerOnboarding";
 import {
   LayoutDashboard, Tablet, Terminal, Radio, Users, ClipboardList, FileText, Package, Repeat, FolderTree,
-  LogOut, Menu, Moon, Sun, Globe, Bell, Wifi, WifiOff, Lock,
+  LogOut, Menu, Moon, Sun, Globe, Bell, Wifi, WifiOff, Lock, Briefcase, BellRing,
 } from "lucide-react";
 import { useState, useEffect, type ReactNode } from "react";
 
-interface NavItem { path: string; labelKey: string; icon: ReactNode; roles?: string[]; }
+interface NavItem {
+  path: string;
+  labelKey: string;
+  icon: ReactNode;
+  module?: string;
+  minLevel?: string;
+  sysAdmin?: boolean;
+}
 
-const navItems: NavItem[] = [
-  { path: "/dashboard", labelKey: "nav.dashboard", icon: <LayoutDashboard size={20} /> },
-  { path: "/devices", labelKey: "nav.devices", icon: <Tablet size={20} /> },
-  { path: "/commands", labelKey: "nav.commands", icon: <Terminal size={20} />, roles: ["admin", "operator"] },
-  { path: "/apps", labelKey: "nav.apps", icon: <Package size={20} />, roles: ["admin", "operator"] },
-  { path: "/profiles", labelKey: "nav.profiles", icon: <FileText size={20} />, roles: ["admin", "operator"] },
-  { path: "/rentals", labelKey: "nav.rentals", icon: <Repeat size={20} /> },
-  { path: "/events", labelKey: "nav.events", icon: <Radio size={20} /> },
-  { path: "/categories", labelKey: "nav.categories", icon: <FolderTree size={20} />, roles: ["admin"] },
-  { path: "/users", labelKey: "nav.users", icon: <Users size={20} />, roles: ["admin"] },
-  { path: "/audit", labelKey: "nav.audit", icon: <ClipboardList size={20} />, roles: ["admin"] },
+interface NavGroup {
+  labelKey: string;
+  module?: string;
+  sysAdmin?: boolean;
+  items: NavItem[];
+}
+
+const navGroups: NavGroup[] = [
+  {
+    labelKey: "",
+    items: [
+      { path: "/dashboard", labelKey: "nav.dashboard", icon: <LayoutDashboard size={20} /> },
+    ],
+  },
+  {
+    labelKey: "nav.group_asset",
+    module: "asset",
+    items: [
+      { path: "/asset/list", labelKey: "nav.assets", icon: <Briefcase size={20} />, module: "asset" },
+      { path: "/asset/categories", labelKey: "nav.categories", icon: <FolderTree size={20} />, module: "asset" },
+    ],
+  },
+  {
+    labelKey: "nav.group_mdm",
+    module: "mdm",
+    items: [
+      { path: "/mdm/devices", labelKey: "nav.devices", icon: <Tablet size={20} />, module: "mdm" },
+      { path: "/mdm/commands", labelKey: "nav.commands", icon: <Terminal size={20} />, module: "mdm", minLevel: "operator" },
+      { path: "/mdm/apps", labelKey: "nav.apps", icon: <Package size={20} />, module: "mdm", minLevel: "operator" },
+      { path: "/mdm/profiles", labelKey: "nav.profiles", icon: <FileText size={20} />, module: "mdm", minLevel: "operator" },
+      { path: "/mdm/events", labelKey: "nav.events", icon: <Radio size={20} />, module: "mdm" },
+    ],
+  },
+  {
+    labelKey: "nav.group_rental",
+    module: "rental",
+    items: [
+      { path: "/rental/list", labelKey: "nav.rentals", icon: <Repeat size={20} />, module: "rental" },
+      { path: "/rental/notifications", labelKey: "nav.notifications", icon: <BellRing size={20} />, module: "rental", minLevel: "approver" },
+    ],
+  },
+  {
+    labelKey: "nav.group_admin",
+    sysAdmin: true,
+    items: [
+      { path: "/admin/users", labelKey: "nav.users", icon: <Users size={20} />, sysAdmin: true },
+      { path: "/admin/audit", labelKey: "nav.audit", icon: <ClipboardList size={20} />, sysAdmin: true },
+    ],
+  },
 ];
+
+const levelOrder: Record<string, number> = {
+  none: 0, viewer: 1, requester: 2, operator: 3, approver: 4, manager: 5,
+};
 
 const languages = [
   { code: "zh-TW", label: "繁體中文" },
   { code: "en", label: "English" },
 ];
+
+function useNavFilter() {
+  const { user, modulePermissions } = useAuthStore();
+  const isSysAdmin = user?.system_role === "sys_admin" || user?.role === "admin";
+
+  function hasModuleAccess(module?: string, minLevel?: string) {
+    if (!module) return true;
+    if (isSysAdmin) return true;
+    const level = modulePermissions[module] || "none";
+    const required = minLevel || "viewer";
+    return (levelOrder[level] ?? 0) >= (levelOrder[required] ?? 0);
+  }
+
+  const filtered: { label: string; items: NavItem[] }[] = [];
+  for (const group of navGroups) {
+    if (group.sysAdmin && !isSysAdmin) continue;
+    if (group.module && !hasModuleAccess(group.module)) continue;
+
+    const visibleItems = group.items.filter((item) => {
+      if (item.sysAdmin && !isSysAdmin) return false;
+      return hasModuleAccess(item.module, item.minLevel);
+    });
+
+    if (visibleItems.length > 0) {
+      filtered.push({ label: group.labelKey, items: visibleItems });
+    }
+  }
+  return filtered;
+}
 
 export function Layout() {
   const { user, logout } = useAuthStore();
@@ -43,6 +122,8 @@ export function Layout() {
   const [showTracker, setShowTracker] = useState(false);
   const [showChangePw, setShowChangePw] = useState(false);
 
+  const filteredGroups = useNavFilter();
+
   // Start the gRPC event stream
   useEventStream();
 
@@ -54,8 +135,9 @@ export function Layout() {
   const toggleTheme = () => setTheme(theme === "light" ? "dark" : "light");
   const switchLang = (code: string) => { i18n.changeLanguage(code); localStorage.setItem("lang", code); };
 
-  const filteredNav = navItems.filter((item) => !item.roles || item.roles.includes(user?.role || ""));
-  const currentPage = navItems.find((item) => item.path === location.pathname);
+  // Find current page label across all groups
+  const allItems = filteredGroups.flatMap((g) => g.items);
+  const currentPage = allItems.find((item) => location.pathname.startsWith(item.path));
   const pendingCommands = trackedCommands.filter((c) => c.status === "sent").length;
 
   return (
@@ -106,7 +188,7 @@ export function Layout() {
                   </div>
                   <div className="hidden sm:block text-left">
                     <div className="text-sm font-medium">{user?.display_name || user?.username}</div>
-                    <div className="text-xs opacity-60">{user?.role}</div>
+                    <div className="text-xs opacity-60">{user?.system_role === "sys_admin" ? "sys_admin" : user?.role}</div>
                   </div>
                 </div>
                 <ul tabIndex={0} className="dropdown-content menu bg-base-100 rounded-box z-10 w-52 p-2 shadow-lg border border-base-300">
@@ -130,12 +212,23 @@ export function Layout() {
                 </div>
               </Link>
             </div>
-            <ul className="menu menu-md p-4 flex-1 gap-1" data-tour="nav-sidebar">
-              {filteredNav.map((item) => (
-                <li key={item.path}>
-                  <Link to={item.path} className={location.pathname === item.path ? "active" : ""}>
-                    {item.icon}{t(item.labelKey)}
-                  </Link>
+            <ul className="menu menu-md p-4 flex-1 gap-0.5" data-tour="nav-sidebar">
+              {filteredGroups.map((group, gi) => (
+                <li key={gi}>
+                  {group.label && (
+                    <div className="menu-title text-xs uppercase tracking-wider opacity-50 mt-3 mb-1 px-0">
+                      {t(group.label)}
+                    </div>
+                  )}
+                  <ul>
+                    {group.items.map((item) => (
+                      <li key={item.path}>
+                        <Link to={item.path} className={location.pathname.startsWith(item.path) ? "active" : ""}>
+                          {item.icon}{t(item.labelKey)}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
                 </li>
               ))}
             </ul>

@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { DevicePicker } from "../components/DevicePicker";
 import apiClient from "../lib/apiClient";
 import { useDialog } from "../components/DialogProvider";
-import * as XLSX from "xlsx";
 import {
   Check, X, RotateCcw, Play, UserPlus, Clock,
   CheckCircle, AlertCircle, ArrowRight, FileDown, Archive,
@@ -104,52 +103,24 @@ function groupByRentalNumber(rentals: Rental[]): RentalGroup[] {
   return groups;
 }
 
-const checklistLabels: Record<string, string> = {
-  deviceReceived: "已收到裝置",
-  screenOk: "螢幕完好",
-  bodyOk: "機身完好",
-  canPowerOn: "可正常開機",
-  accessoriesOk: "配件齊全",
-};
-
-function buildExcelRows(groups: RentalGroup[]) {
-  const rows: Record<string, unknown>[] = [];
-  for (const g of groups) {
-    const sc = statusConfig[g.status] || statusConfig.pending;
-    const deviceNames = g.rentals.map((r) => r.device_name || r.device_serial).join("、");
-    const deviceSerials = g.rentals.map((r) => r.device_serial).join("、");
-    const cl = g.return_checklist;
-    const row: Record<string, unknown> = {
-      "單號": g.rental_number,
-      "裝置數": g.rentals.length,
-      "裝置名稱": deviceNames,
-      "裝置序號": deviceSerials,
-      "借用人": g.borrower_name,
-      "保管人": g.custodian_name || "",
-      "用途": g.purpose,
-      "狀態": sc.label,
-      "借出日期": g.borrow_date ? new Date(g.borrow_date).toLocaleDateString() : "",
-      "預計歸還": g.expected_return || "",
-      "實際歸還": g.actual_return ? new Date(g.actual_return).toLocaleDateString() : "",
-      "核准人": g.approver_name || "",
-      "備註": g.rentals[0]?.notes || "",
-    };
-    // Return checklist columns
-    for (const [key, label] of Object.entries(checklistLabels)) {
-      row[`歸還清點-${label}`] = cl?.[key as keyof ReturnChecklist] ? "V" : "";
-    }
-    row["歸還備註"] = g.return_notes || "";
-    row["存查"] = g.is_archived ? "是" : "";
-    rows.push(row);
+async function downloadExportExcel(ids?: string[]) {
+  const params = new URLSearchParams();
+  if (ids && ids.length > 0) {
+    params.set("ids", ids.join(","));
   }
-  return rows;
-}
-
-function downloadExcel(rows: Record<string, unknown>[], filename: string) {
-  const ws = XLSX.utils.json_to_sheet(rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "租借記錄");
-  XLSX.writeFile(wb, filename);
+  const resp = await apiClient.get(`/api/rentals-export?${params}`, {
+    responseType: "blob",
+  });
+  const url = URL.createObjectURL(resp.data);
+  const a = document.createElement("a");
+  a.href = url;
+  const disposition = resp.headers["content-disposition"] || "";
+  const match = disposition.match(/filename="?([^"]+)"?/);
+  a.download = match?.[1] || `租借記錄_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 export function Rentals() {
@@ -319,12 +290,11 @@ export function Rentals() {
   );
 
   // Export
-  const handleExport = () => {
+  const handleExport = async () => {
     const target = selectedGroups.length > 0 ? selectedGroups : groups;
     if (target.length === 0) return;
-    const rows = buildExcelRows(target);
-    const now = new Date().toISOString().slice(0, 10);
-    downloadExcel(rows, `租借記錄_${now}.xlsx`);
+    const ids = target.flatMap((g) => g.rentals.map((r) => r.id));
+    await downloadExportExcel(ids);
   };
 
   // Export + archive
@@ -333,12 +303,9 @@ export function Rentals() {
       await dialog.alert("請先勾選要存查的記錄");
       return;
     }
-    const rows = buildExcelRows(selectedGroups);
-    const now = new Date().toISOString().slice(0, 10);
-    downloadExcel(rows, `租借記錄_存查_${now}.xlsx`);
-
-    // Get all rental IDs from selected groups
     const allIds = selectedGroups.flatMap((g) => g.rentals.map((r) => r.id));
+    await downloadExportExcel(allIds);
+
     try {
       await apiClient.post("/api/rentals-archive", { ids: allIds });
       loadRentals();

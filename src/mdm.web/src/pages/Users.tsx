@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { UserPlus, Trash2, Edit3, X, Save, ShieldCheck, ShieldOff } from "lucide-react";
+import { UserPlus, Trash2, Edit3, X, Save, ShieldCheck, ShieldOff, Shield } from "lucide-react";
 import apiClient from "../lib/apiClient";
 import { useAuthStore } from "../stores/authStore";
 import { useDialog } from "../components/DialogProvider";
@@ -13,6 +13,18 @@ interface UserRow {
   is_active: boolean;
 }
 
+const modules = ["asset", "mdm", "rental"] as const;
+const moduleLabels: Record<string, string> = { asset: "財產管理", mdm: "裝置管理", rental: "租借系統" };
+const levelOptions: Record<string, string[]> = {
+  asset: ["none", "viewer", "operator", "manager"],
+  mdm: ["none", "viewer", "operator", "manager"],
+  rental: ["none", "requester", "approver", "manager"],
+};
+const levelLabels: Record<string, string> = {
+  none: "無權限", viewer: "檢視者", requester: "申請者",
+  operator: "操作員", approver: "核准者", manager: "管理者",
+};
+
 export function Users() {
   const { t } = useTranslation();
   const dialog = useDialog();
@@ -24,6 +36,12 @@ export function Users() {
   const [form, setForm] = useState({ username: "", password: "", role: "viewer", displayName: "" });
   const [editForm, setEditForm] = useState({ role: "", display_name: "", password: "" });
   const [saving, setSaving] = useState(false);
+
+  // Permission editing
+  const [permUserId, setPermUserId] = useState<string | null>(null);
+  const [permUsername, setPermUsername] = useState("");
+  const [permForm, setPermForm] = useState<Record<string, string>>({});
+  const [permSaving, setPermSaving] = useState(false);
 
   const loadUsers = async () => {
     setLoading(true);
@@ -83,6 +101,32 @@ export function Users() {
       await apiClient.delete(`/api/users/${id}`);
       loadUsers();
     } catch (err) { await dialog.error(t("users.deleteFailed") + ": " + (err instanceof Error ? err.message : "")); }
+  };
+
+  const openPermissions = async (u: UserRow) => {
+    setPermUserId(u.id);
+    setPermUsername(u.display_name || u.username);
+    try {
+      const { data } = await apiClient.get(`/api/users-permissions/${u.id}`);
+      const perms: Record<string, string> = {};
+      for (const m of modules) perms[m] = data[m] || "none";
+      setPermForm(perms);
+    } catch {
+      const perms: Record<string, string> = {};
+      for (const m of modules) perms[m] = "none";
+      setPermForm(perms);
+    }
+  };
+
+  const savePermissions = async () => {
+    if (!permUserId) return;
+    setPermSaving(true);
+    try {
+      await apiClient.put(`/api/users-permissions/${permUserId}`, permForm);
+      setPermUserId(null);
+    } catch (err) {
+      await dialog.error("權限更新失敗: " + (err instanceof Error ? err.message : ""));
+    } finally { setPermSaving(false); }
   };
 
   const roleBadge = (role: string) => {
@@ -200,6 +244,7 @@ export function Users() {
                     ) : (
                       <div className="flex gap-1">
                         <button onClick={() => startEdit(u)} className="btn btn-ghost btn-xs"><Edit3 size={14} /></button>
+                        <button onClick={() => openPermissions(u)} className="btn btn-ghost btn-xs" title="模組權限"><Shield size={14} /></button>
                         <button onClick={() => handleDelete(u.id, u.username)} className="btn btn-ghost btn-xs text-error"><Trash2 size={14} /></button>
                       </div>
                     )}
@@ -210,6 +255,42 @@ export function Users() {
           </table>
         </div>
       </div>
+
+      {/* Module Permissions Modal */}
+      {permUserId && (
+        <dialog className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg mb-1">模組權限設定</h3>
+            <p className="text-sm text-base-content/60 mb-4">{permUsername}</p>
+            <div className="space-y-4">
+              {modules.map((m) => (
+                <div key={m} className="form-control">
+                  <label className="label">
+                    <span className="label-text font-medium">{moduleLabels[m]}</span>
+                  </label>
+                  <select
+                    value={permForm[m] || "none"}
+                    onChange={(e) => setPermForm({ ...permForm, [m]: e.target.value })}
+                    className="select select-bordered select-sm w-full"
+                  >
+                    {levelOptions[m].map((level) => (
+                      <option key={level} value={level}>{levelLabels[level]}</option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+            <div className="modal-action">
+              <button onClick={savePermissions} disabled={permSaving} className="btn btn-primary btn-sm gap-1">
+                {permSaving && <span className="loading loading-spinner loading-xs"></span>}
+                儲存變更
+              </button>
+              <button onClick={() => setPermUserId(null)} className="btn btn-ghost btn-sm">取消</button>
+            </div>
+          </div>
+          <div className="modal-backdrop" onClick={() => setPermUserId(null)}></div>
+        </dialog>
+      )}
     </div>
   );
 }

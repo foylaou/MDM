@@ -6,11 +6,15 @@ interface UserInfo {
   id: string;
   username: string;
   role: string;
+  system_role: string;
   display_name: string;
 }
 
+export type ModulePermissions = Record<string, string>;
+
 interface AuthStore {
   user: UserInfo | null;
+  modulePermissions: ModulePermissions;
   clients: Clients | null;
   isLoading: boolean;
   isAuthenticated: boolean;
@@ -22,6 +26,7 @@ interface AuthStore {
 
 export const useAuthStore = create<AuthStore>((set) => ({
   user: null,
+  modulePermissions: {},
   clients: null,
   isLoading: true,
   isAuthenticated: false,
@@ -31,7 +36,14 @@ export const useAuthStore = create<AuthStore>((set) => ({
     try {
       const { data } = await apiClient.get("/api/me");
       set({
-        user: data,
+        user: {
+          id: data.id,
+          username: data.username,
+          role: data.role,
+          system_role: data.system_role || "",
+          display_name: data.display_name || data.username,
+        },
+        modulePermissions: data.module_permissions || {},
         clients: createClients(),
         isAuthenticated: true,
         isLoading: false,
@@ -41,7 +53,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
       // Cookie auth failed, not logged in
     }
 
-    set({ user: null, clients: null, isAuthenticated: false, isLoading: false });
+    set({ user: null, modulePermissions: {}, clients: null, isAuthenticated: false, isLoading: false });
   },
 
   login: async (username: string, password: string) => {
@@ -49,6 +61,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
     const { data } = await apiClient.post("/api/login", { username, password });
     set({
       user: data.user,
+      modulePermissions: data.module_permissions || {},
       clients: createClients(),
       isAuthenticated: true,
     });
@@ -58,6 +71,6 @@ export const useAuthStore = create<AuthStore>((set) => ({
     try {
       await apiClient.post("/api/logout");
     } catch { /* ignore */ }
-    set({ user: null, clients: null, isAuthenticated: false });
+    set({ user: null, modulePermissions: {}, clients: null, isAuthenticated: false });
   },
 }));

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "./stores/authStore";
 import { Layout } from "./components/Layout";
+import { ModuleGuard } from "./components/ModuleGuard";
 import { ToastContainer } from "./components/ToastContainer";
 import { DialogProvider } from "./components/DialogProvider";
 import { Login } from "./pages/Login";
@@ -16,7 +17,14 @@ import { Users } from "./pages/Users";
 import { Audit } from "./pages/Audit";
 import { Rentals } from "./pages/Rentals";
 import { Categories } from "./pages/Categories";
+import { Notifications } from "./pages/Notifications";
 import { useState, useEffect } from "react";
+import { useParams } from "react-router-dom";
+
+function DeviceRedirect() {
+  const { udid } = useParams();
+  return <Navigate to={`/mdm/devices/${udid}`} replace />;
+}
 import apiClient from "./lib/apiClient";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -76,16 +84,39 @@ function AppRoutes() {
         }
       >
         <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/devices" element={<Devices />} />
-        <Route path="/devices/:udid" element={<DeviceDetail />} />
-        <Route path="/commands" element={<Commands />} />
-        <Route path="/apps" element={<Apps />} />
-        <Route path="/profiles" element={<Profiles />} />
-        <Route path="/events" element={<Events />} />
-        <Route path="/rentals" element={<Rentals />} />
-        <Route path="/categories" element={<Categories />} />
-        <Route path="/users" element={<Users />} />
-        <Route path="/audit" element={<Audit />} />
+
+        {/* Asset module */}
+        <Route path="/asset/list" element={<ModuleGuard module="asset"><Devices /></ModuleGuard>} />
+        <Route path="/asset/categories" element={<ModuleGuard module="asset"><Categories /></ModuleGuard>} />
+
+        {/* MDM module */}
+        <Route path="/mdm/devices" element={<ModuleGuard module="mdm"><Devices /></ModuleGuard>} />
+        <Route path="/mdm/devices/:udid" element={<ModuleGuard module="mdm"><DeviceDetail /></ModuleGuard>} />
+        <Route path="/mdm/commands" element={<ModuleGuard module="mdm" minLevel="operator"><Commands /></ModuleGuard>} />
+        <Route path="/mdm/apps" element={<ModuleGuard module="mdm" minLevel="operator"><Apps /></ModuleGuard>} />
+        <Route path="/mdm/profiles" element={<ModuleGuard module="mdm" minLevel="operator"><Profiles /></ModuleGuard>} />
+        <Route path="/mdm/events" element={<ModuleGuard module="mdm"><Events /></ModuleGuard>} />
+
+        {/* Rental module */}
+        <Route path="/rental/list" element={<ModuleGuard module="rental" minLevel="requester"><Rentals /></ModuleGuard>} />
+        <Route path="/rental/notifications" element={<ModuleGuard module="rental" minLevel="approver"><Notifications /></ModuleGuard>} />
+
+        {/* Admin */}
+        <Route path="/admin/users" element={<Users />} />
+        <Route path="/admin/audit" element={<Audit />} />
+
+        {/* Backward-compatible redirects */}
+        <Route path="/devices/:udid" element={<DeviceRedirect />} />
+        <Route path="/devices" element={<Navigate to="/mdm/devices" replace />} />
+        <Route path="/commands" element={<Navigate to="/mdm/commands" replace />} />
+        <Route path="/apps" element={<Navigate to="/mdm/apps" replace />} />
+        <Route path="/profiles" element={<Navigate to="/mdm/profiles" replace />} />
+        <Route path="/events" element={<Navigate to="/mdm/events" replace />} />
+        <Route path="/rentals" element={<Navigate to="/rental/list" replace />} />
+        <Route path="/categories" element={<Navigate to="/asset/categories" replace />} />
+        <Route path="/users" element={<Navigate to="/admin/users" replace />} />
+        <Route path="/audit" element={<Navigate to="/admin/audit" replace />} />
+
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
       </Route>
     </Routes>

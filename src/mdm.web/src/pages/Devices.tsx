@@ -238,7 +238,7 @@ export function Devices() {
               ) : devices.map((d) => {
                 const st = ASSET_STATUS_CONFIG[d.asset_status] || ASSET_STATUS_CONFIG.available;
                 return (
-                  <tr key={d.udid} className="hover cursor-pointer" onClick={() => navigate(`/devices/${d.udid}`)}>
+                  <tr key={d.udid} className="hover cursor-pointer" onClick={() => navigate(`/mdm/devices/${d.udid}`)}>
                     <th onClick={(e) => e.stopPropagation()}>
                       <label>
                         <input type="checkbox" className="checkbox checkbox-sm"

@@ -30,6 +30,11 @@ export class ListAuditLogsRequest extends Message<ListAuditLogsRequest> {
    */
   pageToken = "";
 
+  /**
+   * @generated from field: string module = 5;
+   */
+  module = "";
+
   constructor(data?: PartialMessage<ListAuditLogsRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -42,6 +47,7 @@ export class ListAuditLogsRequest extends Message<ListAuditLogsRequest> {
     { no: 2, name: "action", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 4, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "module", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListAuditLogsRequest {
@@ -143,6 +149,21 @@ export class AuditLog extends Message<AuditLog> {
    */
   timestamp?: Timestamp;
 
+  /**
+   * @generated from field: string module = 8;
+   */
+  module = "";
+
+  /**
+   * @generated from field: string ip_address = 9;
+   */
+  ipAddress = "";
+
+  /**
+   * @generated from field: string user_agent = 10;
+   */
+  userAgent = "";
+
   constructor(data?: PartialMessage<AuditLog>) {
     super();
     proto3.util.initPartial(data, this);
@@ -158,6 +179,9 @@ export class AuditLog extends Message<AuditLog> {
     { no: 5, name: "target", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 6, name: "detail", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 7, name: "timestamp", kind: "message", T: Timestamp },
+    { no: 8, name: "module", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 9, name: "ip_address", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 10, name: "user_agent", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): AuditLog {

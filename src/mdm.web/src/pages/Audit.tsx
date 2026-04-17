@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuthStore } from "../stores/authStore";
 import { useEventStore } from "../stores/eventStore";
 import { useTranslation } from "react-i18next";
-import { Search, RefreshCw, Download, ChevronDown, ChevronRight, Clock, CheckCircle, AlertCircle, Activity, Filter } from "lucide-react";
+import { Search, RefreshCw, Download, ChevronDown, ChevronRight, Clock, CheckCircle, AlertCircle, Activity } from "lucide-react";
 import { Pagination } from "../components/Pagination";
 import { ResponseViewer } from "../components/ResponseViewer";
 import type { AuditLog } from "../gen/mdm/v1/audit_pb";

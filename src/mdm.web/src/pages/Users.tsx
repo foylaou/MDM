@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { UserPlus, Trash2, Edit3, X, Save, ShieldCheck, ShieldOff, ChevronDown, ChevronUp } from "lucide-react";
+import { UserPlus, Trash2, Save, ShieldCheck, ShieldOff, ChevronDown, ChevronUp } from "lucide-react";
 import apiClient from "../lib/apiClient";
 import { useAuthStore } from "../stores/authStore";
 import { useDialog } from "../components/DialogProvider";

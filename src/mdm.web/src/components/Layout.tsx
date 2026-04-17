@@ -2,7 +2,6 @@ import { Link, Outlet, useLocation } from "react-router-dom";
 import { useAuthStore } from "../stores/authStore";
 import { useEventStore } from "../stores/eventStore";
 import { useEventStream } from "../hooks/useEventStream";
-import { useModulePermission } from "../hooks/useModulePermission";
 import { useTranslation } from "react-i18next";
 import { CommandTracker } from "./CommandTracker";
 import { ChangePassword } from "./ChangePassword";

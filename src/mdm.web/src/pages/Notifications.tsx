@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import apiClient from "../lib/apiClient";
-import { BellRing, Check, AlertCircle, Clock } from "lucide-react";
+import { Check, AlertCircle, Clock } from "lucide-react";
 
 interface Notification {
   id: string;

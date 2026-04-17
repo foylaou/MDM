@@ -15,6 +15,7 @@ message ListAuditLogsRequest {
   string action = 2;
   int32 page_size = 3;
   string page_token = 4;
+  string module = 5;
 }
 
 message ListAuditLogsResponse {
@@ -30,4 +31,7 @@ message AuditLog {
   string target = 5;
   string detail = 6;
   google.protobuf.Timestamp timestamp = 7;
+  string module = 8;
+  string ip_address = 9;
+  string user_agent = 10;
 }

@@ -94,6 +94,7 @@ func (s *DeviceService) SyncDevices(ctx context.Context, req *connect.Request[md
 	userID, _ := ctx.Value(middleware.CtxUserID).(string)
 	if err := s.audit.Create(ctx, &domain.AuditLog{
 		UserID: userID, Username: username, Action: "sync_devices", Detail: fmt.Sprintf("synced %d devices", len(devices)),
+		Module: "mdm",
 	}); err != nil {
 		log.Printf("audit log: %v", err)
 	}

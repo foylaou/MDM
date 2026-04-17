@@ -4,16 +4,17 @@ import { useDeviceStore } from "../stores/deviceStore";
 import { useTranslation } from "react-i18next";
 import { useDialog } from "../components/DialogProvider";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, RefreshCw, Send, Info, X, Filter, Columns } from "lucide-react";
+import { Search, RefreshCw, Send, Info, X, Filter, Columns, Download } from "lucide-react";
 import apiClient from "../lib/apiClient";
 
 const ASSET_STATUS_CONFIG: Record<string, { label: string; badge: string }> = {
-  available:  { label: "可用",   badge: "badge-success" },
-  rented:     { label: "借出",   badge: "badge-warning" },
-  faulty:     { label: "故障",   badge: "badge-error" },
-  repairing:  { label: "維修中", badge: "badge-info" },
-  lost:       { label: "遺失",   badge: "badge-error" },
-  retired:    { label: "報廢",   badge: "badge-ghost" },
+  available:    { label: "可用",   badge: "badge-success" },
+  rented:       { label: "借出",   badge: "badge-warning" },
+  faulty:       { label: "故障",   badge: "badge-error" },
+  repairing:    { label: "維修中", badge: "badge-info" },
+  lost:         { label: "遺失",   badge: "badge-error" },
+  retired:      { label: "報廢",   badge: "badge-ghost" },
+  transferred:  { label: "移撥",   badge: "badge-ghost" },
 };
 
 interface ColumnDef {
@@ -143,6 +144,9 @@ export function Devices() {
           <button onClick={handleSyncInfo} disabled={syncingInfo} className="btn btn-info btn-sm gap-1">
             {syncingInfo ? <span className="loading loading-spinner loading-xs"></span> : <Info size={14} />}
             {t("assets.syncInfo")}
+          </button>
+          <button onClick={() => window.open("/api/assets-export", "_blank")} className="btn btn-outline btn-sm gap-1">
+            <Download size={14} />Excel
           </button>
           <div className="dropdown dropdown-end">
             <button tabIndex={0} onClick={() => setShowColPicker(!showColPicker)} className="btn btn-ghost btn-sm gap-1">

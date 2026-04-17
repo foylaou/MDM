@@ -159,13 +159,15 @@ func (c *DeviceController) handleDevicesAvailable(w http.ResponseWriter, r *http
 		return
 	}
 	type deviceRow struct {
-		UDID             string `json:"udid"`
-		SerialNumber     string `json:"serial_number"`
-		DeviceName       string `json:"device_name"`
-		Model            string `json:"model"`
-		OSVersion        string `json:"os_version"`
-		EnrollmentStatus string `json:"enrollment_status"`
-		AssetStatus      string `json:"asset_status"`
+		UDID             string  `json:"udid"`
+		SerialNumber     string  `json:"serial_number"`
+		DeviceName       string  `json:"device_name"`
+		Model            string  `json:"model"`
+		OSVersion        string  `json:"os_version"`
+		EnrollmentStatus string  `json:"enrollment_status"`
+		AssetStatus      string  `json:"asset_status"`
+		CategoryID       *string `json:"category_id"`
+		CategoryName     string  `json:"category_name"`
 	}
 	rows := make([]deviceRow, 0, len(devices))
 	for _, d := range devices {
@@ -173,6 +175,7 @@ func (c *DeviceController) handleDevicesAvailable(w http.ResponseWriter, r *http
 			UDID: d.UDID, SerialNumber: d.SerialNumber, DeviceName: d.DeviceName,
 			Model: d.Model, OSVersion: d.OSVersion,
 			EnrollmentStatus: d.EnrollmentStatus, AssetStatus: d.AssetStatus,
+			CategoryID: d.CategoryID, CategoryName: d.CategoryName,
 		})
 	}
 	writeJSON(w, map[string]interface{}{"devices": rows})

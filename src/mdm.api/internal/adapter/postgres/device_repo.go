@@ -197,9 +197,11 @@ func (r *DeviceRepo) ListAvailable(ctx context.Context) ([]*domain.DeviceListIte
 	q := `SELECT d.udid, d.serial_number, d.device_name, d.model, d.os_version,
 	             d.enrollment_status,
 	             COALESCE(a.asset_status,'available') as asset_status,
+	             a.category_id, COALESCE(c.name,'') as category_name,
 	             EXISTS(SELECT 1 FROM rentals rl WHERE rl.device_udid = d.udid AND rl.status = 'active') as is_rented
 	      FROM devices d
 	      LEFT JOIN assets a ON a.device_udid = d.udid
+	      LEFT JOIN categories c ON a.category_id = c.id
 	      ORDER BY d.device_name`
 	rows, err := r.pool.Query(ctx, q)
 	if err != nil {
@@ -213,7 +215,7 @@ func (r *DeviceRepo) ListAvailable(ctx context.Context) ([]*domain.DeviceListIte
 		var assetStatus string
 		var isRented bool
 		if err := rows.Scan(&d.UDID, &d.SerialNumber, &d.DeviceName, &d.Model, &d.OSVersion,
-			&d.EnrollmentStatus, &assetStatus, &isRented); err != nil {
+			&d.EnrollmentStatus, &assetStatus, &d.CategoryID, &d.CategoryName, &isRented); err != nil {
 			continue
 		}
 		if isRented {

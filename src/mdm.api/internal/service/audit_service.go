@@ -29,7 +29,7 @@ func (s *AuditService) ListAuditLogs(ctx context.Context, req *connect.Request[m
 	if limit <= 0 || limit > 100 {
 		limit = 50
 	}
-	logs, err := s.repo.List(ctx, req.Msg.UserId, req.Msg.Action, limit, 0)
+	logs, err := s.repo.List(ctx, req.Msg.UserId, req.Msg.Action, req.Msg.Module, limit, 0)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -39,6 +39,9 @@ func (s *AuditService) ListAuditLogs(ctx context.Context, req *connect.Request[m
 			Id: l.ID, UserId: l.UserID, Username: l.Username,
 			Action: l.Action, Target: l.Target, Detail: l.Detail,
 			Timestamp: timestamppb.New(l.Timestamp),
+			Module:    l.Module,
+			IpAddress: l.IPAddress,
+			UserAgent: l.UserAgent,
 		})
 	}
 	return connect.NewResponse(resp), nil

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"encoding/json"
+	"net"
 	"net/http"
 	"strings"
 )
@@ -34,4 +35,19 @@ func requireMethod(w http.ResponseWriter, r *http.Request, methods ...string) bo
 	}
 	w.WriteHeader(http.StatusMethodNotAllowed)
 	return false
+}
+
+// clientIP extracts the client IP from the request (respects X-Forwarded-For).
+func clientIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		if i := strings.Index(xff, ","); i > 0 {
+			return strings.TrimSpace(xff[:i])
+		}
+		return strings.TrimSpace(xff)
+	}
+	if xri := r.Header.Get("X-Real-Ip"); xri != "" {
+		return xri
+	}
+	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+	return ip
 }

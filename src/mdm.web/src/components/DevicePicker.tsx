@@ -13,6 +13,8 @@ interface DeviceItem {
   os_version: string;
   enrollment_status: string;
   asset_status: string;
+  category_id: string | null;
+  category_name: string;
 }
 
 interface DevicePickerProps {
@@ -69,8 +71,11 @@ export function DevicePicker({ selected, onChange, showFilters }: DevicePickerPr
     if (statusFilter) {
       result = result.filter((d) => d.asset_status === statusFilter);
     }
+    if (categoryFilter) {
+      result = result.filter((d) => d.category_id === categoryFilter);
+    }
     return result;
-  }, [devices, search, statusFilter]);
+  }, [devices, search, statusFilter, categoryFilter]);
 
   const selectedSet = useMemo(() => new Set(selected), [selected]);
 

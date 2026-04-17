@@ -300,7 +300,7 @@ func (c *RentalController) handleRentalByID(w http.ResponseWriter, r *http.Reque
 			borrowerID, borrowerName, _ := c.rentalRepo.GetBorrowerInfo(r.Context(), id)
 			udids, _ := c.rentalRepo.ListDeviceUdidsByNumber(r.Context(), rental.RentalNumber)
 			for _, udid := range udids {
-				c.assetRepo.UpdateCustodian(r.Context(), udid, borrowerID, borrowerName, false)
+				c.assetRepo.SetHolderByUdid(r.Context(), udid, borrowerID, borrowerName)
 			}
 			// Notify borrower that devices are handed out
 			go func() {
@@ -331,7 +331,7 @@ func (c *RentalController) handleRentalByID(w http.ResponseWriter, r *http.Reque
 			c.rentalRepo.ReturnByNumber(r.Context(), rental.RentalNumber, checklistJSON, returnBody.Notes)
 			udids, _ := c.rentalRepo.ListDeviceUdidsByNumber(r.Context(), rental.RentalNumber)
 			for _, udid := range udids {
-				c.assetRepo.UpdateCustodian(r.Context(), udid, claims.UserID, approverDisplayName, true)
+				c.assetRepo.ClearHolderByUdid(r.Context(), udid)
 			}
 			// Notify custodian that devices are returned
 			go func() {
@@ -353,7 +353,7 @@ func (c *RentalController) handleRentalByID(w http.ResponseWriter, r *http.Reque
 					}
 				}
 			}()
-			log.Printf("[rental] batch returned: rental_number=%d custodian restored to %s", rental.RentalNumber, approverDisplayName)
+			log.Printf("[rental] batch returned: rental_number=%d holder cleared", rental.RentalNumber)
 			writeJSON(w, map[string]interface{}{"ok": true, "status": "returned"})
 
 		case "reject":

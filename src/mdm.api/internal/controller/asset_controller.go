@@ -2,9 +2,13 @@ package controller
 
 import (
 	"encoding/json"
+	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/xuri/excelize/v2"
 
 	"github.com/anthropics/mdm-server/internal/domain"
 	"github.com/anthropics/mdm-server/internal/middleware"
@@ -12,18 +16,71 @@ import (
 )
 
 type AssetController struct {
-	assetRepo port.AssetRepository
-	auth      *middleware.AuthHelper
+	assetRepo   port.AssetRepository
+	auditRepo   port.AuditRepository
+	custodyRepo port.CustodyRepository
+	userRepo    port.UserRepository
+	auth        *middleware.AuthHelper
 }
 
-func NewAssetController(assetRepo port.AssetRepository, auth *middleware.AuthHelper) *AssetController {
-	return &AssetController{assetRepo: assetRepo, auth: auth}
+func NewAssetController(assetRepo port.AssetRepository, auditRepo port.AuditRepository, custodyRepo port.CustodyRepository, userRepo port.UserRepository, auth *middleware.AuthHelper) *AssetController {
+	return &AssetController{
+		assetRepo: assetRepo, auditRepo: auditRepo,
+		custodyRepo: custodyRepo, userRepo: userRepo, auth: auth,
+	}
 }
 
 func (c *AssetController) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/assets", c.handleAssets)
+	mux.HandleFunc("/api/assets-export", c.handleExport)
+	mux.HandleFunc("/api/assets-lifecycle", c.handleLifecycle)
+	mux.HandleFunc("/api/assets-custody", c.handleCustody)
+	mux.HandleFunc("/api/assets-custody/", c.handleCustodyHistory)
 	mux.HandleFunc("/api/assets/", c.handleAssetByID)
 	mux.HandleFunc("/api/device-status", c.handleDeviceStatus)
+}
+
+func assetToRow(a *domain.Asset) map[string]interface{} {
+	row := map[string]interface{}{
+		"id": a.ID, "device_udid": a.DeviceUdid, "asset_number": a.AssetNumber,
+		"name": a.Name, "spec": a.Spec, "quantity": a.Quantity, "unit": a.Unit,
+		"unit_price": a.UnitPrice, "purpose": a.Purpose,
+		"custodian_id": a.CustodianID, "custodian_name": a.CustodianName,
+		"location": a.Location, "asset_category": a.AssetCategory, "notes": a.Notes,
+		"created_at": a.CreatedAt.Format(time.RFC3339), "updated_at": a.UpdatedAt.Format(time.RFC3339),
+		"device_name": a.DeviceName, "device_serial": a.DeviceSerial,
+		"category_id": a.CategoryID, "category_name": a.CategoryName, "asset_status": a.AssetStatus,
+		"dispose_reason": a.DisposeReason, "transferred_to": a.TransferredTo,
+	}
+	if a.AcquiredDate != nil {
+		row["acquired_date"] = a.AcquiredDate.Format("2006-01-02")
+	} else {
+		row["acquired_date"] = nil
+	}
+	if a.AssignedDate != nil {
+		row["assigned_date"] = a.AssignedDate.Format("2006-01-02")
+	} else {
+		row["assigned_date"] = nil
+	}
+	row["current_holder_id"] = a.CurrentHolderID
+	row["current_holder_name"] = a.CurrentHolderName
+	if a.CurrentHolderSince != nil {
+		row["current_holder_since"] = a.CurrentHolderSince.Format(time.RFC3339)
+	} else {
+		row["current_holder_since"] = nil
+	}
+	if a.DisposedAt != nil {
+		row["disposed_at"] = a.DisposedAt.Format(time.RFC3339)
+	} else {
+		row["disposed_at"] = nil
+	}
+	if a.TransferredAt != nil {
+		row["transferred_at"] = a.TransferredAt.Format(time.RFC3339)
+	} else {
+		row["transferred_at"] = nil
+	}
+	row["disposed_by"] = a.DisposedBy
+	return row
 }
 
 // handleAssets godoc
@@ -55,64 +112,39 @@ func (c *AssetController) handleAssets(w http.ResponseWriter, r *http.Request) {
 		}
 		rows := make([]map[string]interface{}, 0, len(assets))
 		for _, a := range assets {
-			row := map[string]interface{}{
-				"id": a.ID, "device_udid": a.DeviceUdid, "asset_number": a.AssetNumber,
-				"name": a.Name, "spec": a.Spec, "quantity": a.Quantity, "unit": a.Unit,
-				"unit_price": a.UnitPrice, "purpose": a.Purpose,
-				"custodian_id": a.CustodianID, "custodian_name": a.CustodianName,
-				"location": a.Location, "asset_category": a.AssetCategory, "notes": a.Notes,
-				"created_at": a.CreatedAt.Format(time.RFC3339), "updated_at": a.UpdatedAt.Format(time.RFC3339),
-				"device_name": a.DeviceName, "device_serial": a.DeviceSerial,
-				"category_id": a.CategoryID, "category_name": a.CategoryName, "asset_status": a.AssetStatus,
-			}
-			if a.AcquiredDate != nil {
-				s := a.AcquiredDate.Format("2006-01-02")
-				row["acquired_date"] = s
-			} else {
-				row["acquired_date"] = nil
-			}
-			if a.BorrowDate != nil {
-				s := a.BorrowDate.Format("2006-01-02")
-				row["borrow_date"] = s
-			} else {
-				row["borrow_date"] = nil
-			}
-			rows = append(rows, row)
+			rows = append(rows, assetToRow(a))
 		}
 		json.NewEncoder(w).Encode(map[string]interface{}{"assets": rows})
 
 	case http.MethodPost:
 		var body struct {
-			DeviceUdid    *string  `json:"device_udid"`
-			AssetNumber   string   `json:"asset_number"`
-			Name          string   `json:"name"`
-			Spec          string   `json:"spec"`
-			Quantity      int      `json:"quantity"`
-			Unit          string   `json:"unit"`
-			AcquiredDate  *string  `json:"acquired_date"`
-			UnitPrice     float64  `json:"unit_price"`
-			Purpose       string   `json:"purpose"`
-			BorrowDate    *string  `json:"borrow_date"`
-			CustodianID   *string  `json:"custodian_id"`
-			CustodianName string   `json:"custodian_name"`
-			Location      string   `json:"location"`
-			AssetCategory string   `json:"asset_category"`
-			Notes         string   `json:"notes"`
-			CategoryID    *string  `json:"category_id"`
+			DeviceUdid    *string `json:"device_udid"`
+			AssetNumber   string  `json:"asset_number"`
+			Name          string  `json:"name"`
+			Spec          string  `json:"spec"`
+			Quantity      int     `json:"quantity"`
+			Unit          string  `json:"unit"`
+			AcquiredDate  *string `json:"acquired_date"`
+			UnitPrice     float64 `json:"unit_price"`
+			Purpose       string  `json:"purpose"`
+			Location      string  `json:"location"`
+			AssetCategory string  `json:"asset_category"`
+			Notes         string  `json:"notes"`
+			CategoryID    *string `json:"category_id"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		// Note: custodian and assigned_date are NOT accepted here.
+		// Use POST /api/assets-custody to assign a custodian.
 		asset := &domain.Asset{
 			DeviceUdid: body.DeviceUdid, AssetNumber: body.AssetNumber,
 			Name: body.Name, Spec: body.Spec, Quantity: body.Quantity, Unit: body.Unit,
 			UnitPrice: body.UnitPrice, Purpose: body.Purpose,
-			CustodianID: body.CustodianID, CustodianName: body.CustodianName,
 			Location: body.Location, AssetCategory: body.AssetCategory, Notes: body.Notes,
 			CategoryID: body.CategoryID,
 		}
-		// Parse dates - pass as string pointers for the repo to handle
 		id, err := c.assetRepo.Create(r.Context(), asset)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
@@ -200,7 +232,7 @@ func (c *AssetController) handleDeviceStatus(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusBadRequest, "udid and status required")
 		return
 	}
-	valid := map[string]bool{"available": true, "faulty": true, "repairing": true, "retired": true}
+	valid := map[string]bool{"available": true, "faulty": true, "repairing": true, "retired": true, "transferred": true}
 	if !valid[body.Status] {
 		writeError(w, http.StatusBadRequest, "invalid status")
 		return
@@ -210,4 +242,328 @@ func (c *AssetController) handleDeviceStatus(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	writeOK(w)
+}
+
+// handleLifecycle handles asset lifecycle transitions (dispose / transfer).
+// @Summary 資產生命週期操作（報廢/移撥）
+// @Tags Asset
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Router /api/assets-lifecycle [post]
+func (c *AssetController) handleLifecycle(w http.ResponseWriter, r *http.Request) {
+	claims, err := c.auth.RequireModule(r, "asset", "manager")
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	if !requireMethod(w, r, http.MethodPost) {
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+
+	var body struct {
+		Action        string `json:"action"`         // "dispose" or "transfer"
+		AssetID       string `json:"asset_id"`
+		Reason        string `json:"reason"`          // for dispose
+		TransferredTo string `json:"transferred_to"`  // for transfer
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.AssetID == "" || body.Action == "" {
+		writeError(w, http.StatusBadRequest, "action and asset_id required")
+		return
+	}
+
+	switch body.Action {
+	case "dispose":
+		if err := c.assetRepo.Dispose(r.Context(), body.AssetID, claims.UserID, body.Reason); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		c.auditRepo.Create(r.Context(), &domain.AuditLog{
+			UserID: claims.UserID, Username: claims.Username,
+			Action: "asset_dispose", Target: body.AssetID,
+			Detail: body.Reason, Module: "asset",
+			IPAddress: clientIP(r), UserAgent: r.UserAgent(),
+		})
+
+	case "transfer":
+		if body.TransferredTo == "" {
+			writeError(w, http.StatusBadRequest, "transferred_to required")
+			return
+		}
+		if err := c.assetRepo.Transfer(r.Context(), body.AssetID, body.TransferredTo); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		c.auditRepo.Create(r.Context(), &domain.AuditLog{
+			UserID: claims.UserID, Username: claims.Username,
+			Action: "asset_transfer", Target: body.AssetID,
+			Detail: "transferred to: " + body.TransferredTo, Module: "asset",
+			IPAddress: clientIP(r), UserAgent: r.UserAgent(),
+		})
+
+	default:
+		writeError(w, http.StatusBadRequest, "action must be 'dispose' or 'transfer'")
+		return
+	}
+
+	writeOK(w)
+}
+
+// handleCustody godoc
+// @Summary 保管權指派 / 移轉 / 收回
+// @Tags Asset
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body swagCustodyReq true "action=assign|transfer|revoke"
+// @Success 200 {object} swagOK
+// @Failure 400 {object} swagError
+// @Failure 409 {object} swagError
+// @Router /api/assets-custody [post]
+func (c *AssetController) handleCustody(w http.ResponseWriter, r *http.Request) {
+	claims, err := c.auth.RequireModule(r, "asset", "manager")
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	if !requireMethod(w, r, http.MethodPost) {
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+
+	var body struct {
+		Action   string `json:"action"`
+		AssetID  string `json:"asset_id"`
+		ToUserID string `json:"to_user_id"`
+		Reason   string `json:"reason"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.AssetID == "" || body.Action == "" {
+		writeError(w, http.StatusBadRequest, "action and asset_id required")
+		return
+	}
+	if body.Action != "assign" && body.Action != "transfer" && body.Action != "revoke" {
+		writeError(w, http.StatusBadRequest, "action must be assign, transfer or revoke")
+		return
+	}
+	if (body.Action == "assign" || body.Action == "transfer") && body.ToUserID == "" {
+		writeError(w, http.StatusBadRequest, "to_user_id required")
+		return
+	}
+
+	asset, err := c.assetRepo.GetByID(r.Context(), body.AssetID)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "asset not found")
+		return
+	}
+	if asset.AssetStatus == "retired" || asset.AssetStatus == "transferred" {
+		writeError(w, http.StatusConflict, "asset is retired or transferred")
+		return
+	}
+	if asset.CurrentHolderID != nil && *asset.CurrentHolderID != "" {
+		writeError(w, http.StatusConflict, "asset is currently rented out; must be returned before custody change")
+		return
+	}
+
+	var (
+		toID       *string
+		toName     string
+		newAssign  *time.Time
+		auditActn  string
+	)
+
+	switch body.Action {
+	case "assign", "transfer":
+		u, err := c.userRepo.GetByID(r.Context(), body.ToUserID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "to_user not found")
+			return
+		}
+		name := u.DisplayName
+		if name == "" {
+			name = u.Username
+		}
+		id := u.ID
+		toID = &id
+		toName = name
+		now := time.Now()
+		newAssign = &now
+		if asset.CustodianID == nil || *asset.CustodianID == "" {
+			auditActn = "custody_assign"
+		} else {
+			auditActn = "custody_transfer"
+		}
+
+	case "revoke":
+		if asset.CustodianID == nil || *asset.CustodianID == "" {
+			writeError(w, http.StatusConflict, "asset has no custodian to revoke")
+			return
+		}
+		toID = nil
+		toName = ""
+		newAssign = nil
+		auditActn = "custody_revoke"
+	}
+
+	if err := c.assetRepo.SetCustodian(r.Context(), asset.ID, toID, toName, newAssign); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	operatorID := claims.UserID
+	logAction := body.Action
+	if logAction == "assign" && asset.CustodianID != nil && *asset.CustodianID != "" {
+		logAction = "transfer"
+	}
+	custodyLog := &domain.AssetCustodyLog{
+		AssetID:      asset.ID,
+		Action:       logAction,
+		FromUserID:   asset.CustodianID,
+		FromUserName: asset.CustodianName,
+		ToUserID:     toID,
+		ToUserName:   toName,
+		Reason:       body.Reason,
+		OperatedBy:   &operatorID,
+		OperatorName: claims.Username,
+	}
+	if err := c.custodyRepo.Append(r.Context(), custodyLog); err != nil {
+		log.Printf("[custody] append log failed: %v", err)
+	}
+
+	detail := fmt.Sprintf("from=%s to=%s reason=%s", asset.CustodianName, toName, body.Reason)
+	c.auditRepo.Create(r.Context(), &domain.AuditLog{
+		UserID: claims.UserID, Username: claims.Username,
+		Action: auditActn, Target: asset.ID, Detail: detail, Module: "asset",
+		IPAddress: clientIP(r), UserAgent: r.UserAgent(),
+	})
+
+	writeOK(w)
+}
+
+// handleCustodyHistory godoc
+// @Summary 查詢資產的保管權歷史
+// @Tags Asset
+// @Produce json
+// @Security BearerAuth
+// @Param asset_id path string true "資產 ID"
+// @Success 200 {object} map[string]interface{}
+// @Router /api/assets-custody/{asset_id} [get]
+func (c *AssetController) handleCustodyHistory(w http.ResponseWriter, r *http.Request) {
+	if _, err := c.auth.RequireModule(r, "asset", "viewer"); err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+	assetID := strings.TrimPrefix(r.URL.Path, "/api/assets-custody/")
+	if assetID == "" {
+		writeError(w, http.StatusBadRequest, "asset_id required")
+		return
+	}
+	logs, err := c.custodyRepo.ListByAsset(r.Context(), assetID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	rows := make([]map[string]interface{}, 0, len(logs))
+	for _, l := range logs {
+		rows = append(rows, map[string]interface{}{
+			"id":             l.ID,
+			"asset_id":       l.AssetID,
+			"action":         l.Action,
+			"from_user_id":   l.FromUserID,
+			"from_user_name": l.FromUserName,
+			"to_user_id":     l.ToUserID,
+			"to_user_name":   l.ToUserName,
+			"reason":         l.Reason,
+			"operated_by":    l.OperatedBy,
+			"operator_name":  l.OperatorName,
+			"created_at":     l.CreatedAt.Format(time.RFC3339),
+		})
+	}
+	writeJSON(w, map[string]interface{}{"logs": rows})
+}
+
+// handleExport exports the asset list as Excel.
+// @Summary 匯出財產清冊為 Excel
+// @Tags Asset
+// @Produce application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+// @Security BearerAuth
+// @Success 200 {file} file "Excel 檔案"
+// @Router /api/assets-export [get]
+func (c *AssetController) handleExport(w http.ResponseWriter, r *http.Request) {
+	if _, err := c.auth.RequireModule(r, "asset", "viewer"); err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+
+	assets, err := c.assetRepo.List(r.Context(), "")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	statusLabels := map[string]string{
+		"available": "可用", "faulty": "故障", "repairing": "維修中",
+		"retired": "報廢", "transferred": "移撥", "lost": "遺失",
+	}
+
+	f := excelize.NewFile()
+	sheet := "財產清冊"
+	f.SetSheetName("Sheet1", sheet)
+
+	headers := []string{
+		"財產編號", "名稱", "規格", "數量", "單位", "單價", "取得日期",
+		"保管人", "存放處所", "分類", "狀態", "用途", "裝置名稱", "裝置序號",
+		"報廢原因", "移撥對象", "備註",
+	}
+	for col, h := range headers {
+		cell, _ := excelize.CoordinatesToCellName(col+1, 1)
+		f.SetCellValue(sheet, cell, h)
+	}
+	style, _ := f.NewStyle(&excelize.Style{Font: &excelize.Font{Bold: true}})
+	endCell, _ := excelize.CoordinatesToCellName(len(headers), 1)
+	f.SetCellStyle(sheet, "A1", endCell, style)
+
+	for i, a := range assets {
+		row := i + 2
+		acquiredDate := ""
+		if a.AcquiredDate != nil {
+			acquiredDate = a.AcquiredDate.Format("2006-01-02")
+		}
+		statusLabel := statusLabels[a.AssetStatus]
+		if statusLabel == "" {
+			statusLabel = a.AssetStatus
+		}
+
+		vals := []interface{}{
+			a.AssetNumber, a.Name, a.Spec, a.Quantity, a.Unit, a.UnitPrice, acquiredDate,
+			a.CustodianName, a.Location, a.CategoryName, statusLabel, a.Purpose,
+			a.DeviceName, a.DeviceSerial,
+			a.DisposeReason, a.TransferredTo, a.Notes,
+		}
+		for col, v := range vals {
+			cell, _ := excelize.CoordinatesToCellName(col+1, row)
+			f.SetCellValue(sheet, cell, v)
+		}
+	}
+
+	for col := range headers {
+		colName, _ := excelize.ColumnNumberToName(col + 1)
+		f.SetColWidth(sheet, colName, colName, 14)
+	}
+
+	now := time.Now().Format("2006-01-02")
+	filename := fmt.Sprintf("財產清冊_%s.xlsx", now)
+
+	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	if err := f.Write(w); err != nil {
+		log.Printf("[asset-export] write error: %v", err)
+	}
+	f.Close()
 }

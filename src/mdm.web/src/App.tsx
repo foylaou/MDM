@@ -17,6 +17,8 @@ import { Users } from "./pages/Users";
 import { Audit } from "./pages/Audit";
 import { Rentals } from "./pages/Rentals";
 import { Categories } from "./pages/Categories";
+import { Inventory } from "./pages/Inventory";
+import { AssetList } from "./pages/AssetList";
 import { Notifications } from "./pages/Notifications";
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
@@ -86,8 +88,9 @@ function AppRoutes() {
         <Route path="/dashboard" element={<Dashboard />} />
 
         {/* Asset module */}
-        <Route path="/asset/list" element={<ModuleGuard module="asset"><Devices /></ModuleGuard>} />
+        <Route path="/asset/list" element={<ModuleGuard module="asset"><AssetList /></ModuleGuard>} />
         <Route path="/asset/categories" element={<ModuleGuard module="asset"><Categories /></ModuleGuard>} />
+        <Route path="/asset/inventory" element={<ModuleGuard module="asset" minLevel="operator"><Inventory /></ModuleGuard>} />
 
         {/* MDM module */}
         <Route path="/mdm/devices" element={<ModuleGuard module="mdm"><Devices /></ModuleGuard>} />

@@ -9,7 +9,7 @@ import { ChangePassword } from "./ChangePassword";
 import { ViewerOnboarding } from "./ViewerOnboarding";
 import {
   LayoutDashboard, Tablet, Terminal, Radio, Users, ClipboardList, FileText, Package, Repeat, FolderTree,
-  LogOut, Menu, Moon, Sun, Globe, Bell, Wifi, WifiOff, Lock, Briefcase, BellRing,
+  LogOut, Menu, Moon, Sun, Globe, Bell, Wifi, WifiOff, Lock, Briefcase, BellRing, ClipboardCheck,
 } from "lucide-react";
 import { useState, useEffect, type ReactNode } from "react";
 
@@ -42,6 +42,7 @@ const navGroups: NavGroup[] = [
     items: [
       { path: "/asset/list", labelKey: "nav.assets", icon: <Briefcase size={20} />, module: "asset" },
       { path: "/asset/categories", labelKey: "nav.categories", icon: <FolderTree size={20} />, module: "asset" },
+      { path: "/asset/inventory", labelKey: "nav.inventory", icon: <ClipboardCheck size={20} />, module: "asset", minLevel: "operator" },
     ],
   },
   {

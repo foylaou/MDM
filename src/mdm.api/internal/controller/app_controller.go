@@ -279,6 +279,7 @@ func (c *AppController) handleInstall(w http.ResponseWriter, r *http.Request) {
 	_ = c.auditRepo.Create(r.Context(), &domain.AuditLog{
 		UserID: claims.UserID, Username: claims.Username,
 		Action: "install_app", Target: body.UDID, Detail: app.Name + " (" + app.BundleID + ")",
+		Module: "mdm", IPAddress: clientIP(r), UserAgent: r.UserAgent(),
 	})
 
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -340,6 +341,7 @@ func (c *AppController) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	_ = c.auditRepo.Create(r.Context(), &domain.AuditLog{
 		UserID: claims.UserID, Username: claims.Username,
 		Action: "update_app", Target: body.UDID, Detail: app.Name + " (" + app.BundleID + ")",
+		Module: "mdm", IPAddress: clientIP(r), UserAgent: r.UserAgent(),
 	})
 
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -399,6 +401,7 @@ func (c *AppController) handleUninstall(w http.ResponseWriter, r *http.Request) 
 	_ = c.auditRepo.Create(r.Context(), &domain.AuditLog{
 		UserID: claims.UserID, Username: claims.Username,
 		Action: "remove_app", Target: body.UDID, Detail: app.Name + " (" + app.BundleID + ")",
+		Module: "mdm", IPAddress: clientIP(r), UserAgent: r.UserAgent(),
 	})
 
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -486,6 +489,7 @@ func (c *AppController) handleSyncDeviceApps(w http.ResponseWriter, r *http.Requ
 	_ = c.auditRepo.Create(r.Context(), &domain.AuditLog{
 		UserID: claims.UserID, Username: claims.Username,
 		Action: "sync_device_apps", Detail: fmt.Sprintf("synced %d bindings", synced),
+		Module: "mdm", IPAddress: clientIP(r), UserAgent: r.UserAgent(),
 	})
 	json.NewEncoder(w).Encode(map[string]interface{}{"ok": true, "synced": synced})
 }

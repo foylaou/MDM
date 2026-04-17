@@ -58,7 +58,7 @@ func (c *UserController) handleUserByID(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		fields := map[string]interface{}{}
-		for _, k := range []string{"role", "display_name", "is_active"} {
+		for _, k := range []string{"role", "system_role", "display_name", "is_active"} {
 			if v, ok := body[k]; ok {
 				fields[k] = v
 			}
@@ -174,18 +174,32 @@ func (c *UserController) handleUsersList(w http.ResponseWriter, r *http.Request)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
+	// Batch load all module permissions
+	allPerms, _ := c.permissionRepo.ListAll(r.Context())
+
 	type u struct {
-		ID          string `json:"id"`
-		Username    string `json:"username"`
-		DisplayName string `json:"display_name"`
-		Role        string `json:"role"`
-		IsActive    bool   `json:"is_active"`
+		ID          string            `json:"id"`
+		Username    string            `json:"username"`
+		DisplayName string            `json:"display_name"`
+		Role        string            `json:"role"`
+		SystemRole  string            `json:"system_role"`
+		IsActive    bool              `json:"is_active"`
+		Permissions map[string]string `json:"permissions"`
 	}
 	rows := make([]u, 0, len(users))
 	for _, user := range users {
+		perms := map[string]string{}
+		if userPerms, ok := allPerms[user.ID]; ok {
+			for _, p := range userPerms {
+				perms[p.Module] = p.Permission
+			}
+		}
 		rows = append(rows, u{
 			ID: user.ID, Username: user.Username,
-			DisplayName: user.DisplayName, Role: user.Role, IsActive: user.IsActive,
+			DisplayName: user.DisplayName, Role: user.Role,
+			SystemRole: user.SystemRole, IsActive: user.IsActive,
+			Permissions: perms,
 		})
 	}
 	w.Header().Set("Content-Type", "application/json")

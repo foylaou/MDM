@@ -43,3 +43,9 @@ var Migration013SQL string
 
 //go:embed migrations/014_module_permissions.up.sql
 var Migration014SQL string
+
+//go:embed migrations/015_asset_lifecycle_inventory.up.sql
+var Migration015SQL string
+
+//go:embed migrations/016_custody_redesign.up.sql
+var Migration016SQL string

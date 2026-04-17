@@ -2,6 +2,7 @@ package port
 
 import (
 	"context"
+	"time"
 
 	"github.com/anthropics/mdm-server/internal/domain"
 )
@@ -27,7 +28,7 @@ type DeviceRepository interface {
 // AuditRepository persists audit logs.
 type AuditRepository interface {
 	Create(ctx context.Context, log *domain.AuditLog) error
-	List(ctx context.Context, userID string, action string, limit int, offset int) ([]*domain.AuditLog, error)
+	List(ctx context.Context, userID string, action string, module string, limit int, offset int) ([]*domain.AuditLog, error)
 }
 
 // MicroMDMClient calls the MicroMDM HTTP API.
@@ -51,10 +52,42 @@ type VPPClient interface {
 type AssetRepository interface {
 	IsCustodianOfAll(ctx context.Context, userID string, udids []string) (bool, error)
 	List(ctx context.Context, deviceUdid string) ([]*domain.Asset, error)
+	GetByID(ctx context.Context, id string) (*domain.Asset, error)
+	GetByDeviceUdid(ctx context.Context, udid string) (*domain.Asset, error)
 	Create(ctx context.Context, asset *domain.Asset) (string, error)
 	Update(ctx context.Context, id string, fields map[string]interface{}) error
 	Delete(ctx context.Context, id string) error
 	UpdateStatus(ctx context.Context, udid string, status string) error
+	Dispose(ctx context.Context, id string, disposedBy string, reason string) error
+	Transfer(ctx context.Context, id string, transferredTo string) error
+
+	// Custody operations — replace direct custodian writes.
+	SetCustodian(ctx context.Context, id string, custodianID *string, custodianName string, assignedDate *time.Time) error
+	SetHolderByUdid(ctx context.Context, udid string, holderID string, holderName string) error
+	ClearHolderByUdid(ctx context.Context, udid string) error
+}
+
+// CustodyRepository persists the asset custody audit trail.
+type CustodyRepository interface {
+	Append(ctx context.Context, log *domain.AssetCustodyLog) error
+	ListByAsset(ctx context.Context, assetID string) ([]*domain.AssetCustodyLog, error)
+}
+
+// InventoryRepository persists inventory sessions and items.
+type InventoryRepository interface {
+	// Sessions
+	CreateSession(ctx context.Context, session *domain.InventorySession) (string, error)
+	GetSession(ctx context.Context, id string) (*domain.InventorySession, error)
+	ListSessions(ctx context.Context) ([]*domain.InventorySession, error)
+	UpdateSessionStatus(ctx context.Context, id string, status string) error
+	UpdateSessionNotes(ctx context.Context, id string, notes string) error
+	DeleteSession(ctx context.Context, id string) error
+	UpdateSessionCounts(ctx context.Context, id string) error
+
+	// Items
+	GenerateItems(ctx context.Context, sessionID string) (int, error)
+	ListItems(ctx context.Context, sessionID string) ([]*domain.InventoryItem, error)
+	CheckItem(ctx context.Context, id string, found bool, condition string, checkedBy string, checkerName string, notes string) error
 }
 
 // RentalRepository persists rentals.

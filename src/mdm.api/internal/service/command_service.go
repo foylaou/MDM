@@ -105,6 +105,7 @@ func (s *CommandService) auditAction(ctx context.Context, action, target, detail
 	username, _ := ctx.Value(middleware.CtxUsername).(string)
 	if err := s.audit.Create(ctx, &domain.AuditLog{
 		UserID: userID, Username: username, Action: action, Target: target, Detail: detail,
+		Module: "mdm",
 	}); err != nil {
 		log.Printf("audit log: %v", err)
 	}

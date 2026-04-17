@@ -36,6 +36,9 @@ type AuditLog struct {
 	Action    string
 	Target    string
 	Detail    string
+	Module    string // "system", "asset", "mdm", "rental"
+	IPAddress string
+	UserAgent string
 	Timestamp time.Time
 }
 
@@ -68,20 +71,80 @@ type Asset struct {
 	AcquiredDate  *time.Time
 	UnitPrice     float64
 	Purpose       string
-	BorrowDate    *time.Time
-	CustodianID   *string
+	AssignedDate  *time.Time // 保管人領用日期（原 borrow_date）
+	CustodianID   *string    // 保管人（長期負責人），僅透過 custody API 變更
 	CustodianName string
 	Location      string
 	AssetCategory string
 	Notes         string
 	CategoryID    *string
 	AssetStatus   string
+	// Current holder (temporary holder via rental; custodian stays fixed)
+	CurrentHolderID    *string
+	CurrentHolderName  string
+	CurrentHolderSince *time.Time
+	// Lifecycle fields
+	DisposedAt    *time.Time
+	DisposedBy    *string
+	DisposeReason string
+	TransferredTo string
+	TransferredAt *time.Time
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	// Joined fields (read-only)
 	DeviceName   string
 	DeviceSerial string
 	CategoryName string
+}
+
+// AssetCustodyLog records every change to an asset's custodian.
+// Append-only audit trail for ISO 27001 A.8 compliance.
+type AssetCustodyLog struct {
+	ID           string
+	AssetID      string
+	Action       string // "assign", "transfer", "revoke"
+	FromUserID   *string
+	FromUserName string
+	ToUserID     *string
+	ToUserName   string
+	Reason       string
+	OperatedBy   *string
+	OperatorName string
+	CreatedAt    time.Time
+}
+
+// --- Inventory / Stocktaking ---
+
+type InventorySession struct {
+	ID           string
+	Name         string
+	Description  string
+	Status       string // "draft", "in_progress", "completed"
+	CreatedBy    string
+	CreatorName  string
+	CreatedAt    time.Time
+	StartedAt    *time.Time
+	CompletedAt  *time.Time
+	Notes        string
+	TotalCount   int
+	CheckedCount int
+	MatchedCount int
+	MissingCount int
+}
+
+type InventoryItem struct {
+	ID          string
+	SessionID   string
+	AssetID     string
+	DeviceUdid  string
+	AssetNumber string
+	AssetName   string
+	Found       *bool  // nil = not checked, true = found, false = missing
+	Condition   string // "good", "damaged", "other", ""
+	CheckedBy   *string
+	CheckerName string
+	CheckedAt   *time.Time
+	Notes       string
 }
 
 // --- Rental Management ---

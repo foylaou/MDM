@@ -58,3 +58,24 @@ func (r *PermissionRepo) Delete(ctx context.Context, userID string, module strin
 	_, err := r.pool.Exec(ctx, `DELETE FROM user_module_permissions WHERE user_id=$1 AND module=$2`, userID, module)
 	return err
 }
+
+// ListAll returns all permissions grouped by user_id.
+func (r *PermissionRepo) ListAll(ctx context.Context) (map[string][]*domain.ModulePermission, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT id, user_id, module, permission, granted_by, granted_at
+		 FROM user_module_permissions ORDER BY user_id, module`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := map[string][]*domain.ModulePermission{}
+	for rows.Next() {
+		p := &domain.ModulePermission{}
+		if err := rows.Scan(&p.ID, &p.UserID, &p.Module, &p.Permission, &p.GrantedBy, &p.GrantedAt); err != nil {
+			continue
+		}
+		result[p.UserID] = append(result[p.UserID], p)
+	}
+	return result, nil
+}

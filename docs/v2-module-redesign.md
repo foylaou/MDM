@@ -1,7 +1,7 @@
 # MDM 管理平台 v2 — 模組化改版設計書
 
 > 版本：v2.0-draft | 日期：2026-04-16
-> 狀態：**Phase 0–3 完成（Phase 4、5 待做）**
+> 狀態：**Phase 0–5 完成**
 
 ---
 
@@ -1145,7 +1145,7 @@ ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_agent TEXT NOT NULL DEFAULT
   - [x] `user_controller.go` — users/*/users-list
   - [x] `profile_controller.go` — profiles/*
 - [x] 瘦身 main.go 至 ~120 行（依賴注入 + 路由掛載）
-- [ ] 全端點回歸測試（確保搬移後功能不變）
+- [ ] 全端點回歸測試（確保搬移後功能不變）— 待手動驗證
 
 ### Phase 1：模組權限 + DB Migration
 
@@ -1179,15 +1179,34 @@ ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_agent TEXT NOT NULL DEFAULT
 
 ### Phase 4：財產管理模組強化
 
-- [ ] 資產生命週期管理（狀態機：採購→啟用→報廢/移撥）
-- [ ] 盤點作業功能
-- [ ] 報表匯出強化
+- [x] 資產生命週期管理（狀態機：採購→啟用→報廢/移撥）
+  - [x] DB migration 015：assets 生命週期欄位（disposed_at, disposed_by, dispose_reason, transferred_to, transferred_at）
+  - [x] 後端：AssetRepo.Dispose() / Transfer() + /api/assets-lifecycle 端點
+  - [x] 前端：AssetForm 報廢/移撥按鈕 + transferred 狀態 badge
+- [x] 盤點作業功能
+  - [x] DB migration 015：inventory_sessions + inventory_items 表
+  - [x] 後端：InventoryRepository + InventoryController（CRUD + 盤點項目勾選 + 報表匯出）
+  - [x] 前端：Inventory.tsx 盤點頁面（建立/開始/完成/匯出/逐項盤點）
+  - [x] 導覽欄：新增「盤點作業」項目（asset:operator+）
+  - [x] 路由：/asset/inventory
+- [x] 報表匯出強化
+  - [x] /api/assets-export — 財產清冊 Excel 匯出
+  - [x] /api/inventory-export/{id} — 盤點報告 Excel 匯出
+  - [x] 前端：裝置列表頁新增 Excel 匯出按鈕
 
 ### Phase 5：稽核與合規
 
-- [ ] 稽核日誌強化（module、IP、User-Agent）
-- [ ] 稽核日誌查詢頁面支援模組篩選
-- [ ] ISO 27001 控制項自評報告頁面（可選）
+- [x] 稽核日誌強化（module、IP、User-Agent）
+  - [x] AuditLog domain 擴充 Module, IPAddress, UserAgent 欄位
+  - [x] audit_repo.go Create/List 讀寫新欄位
+  - [x] clientIP() helper 提取客戶端 IP（支援 X-Forwarded-For）
+  - [x] 所有 controller audit 呼叫加上 Module + IP + User-Agent
+  - [x] ConnectRPC 指令/裝置服務 audit 加上 Module
+- [x] 稽核日誌查詢頁面支援模組篩選
+  - [x] proto: ListAuditLogsRequest 新增 module 欄位
+  - [x] proto: AuditLog 新增 module, ip_address, user_agent 欄位
+  - [x] 前端：Audit.tsx 新增模組下拉篩選 + 表格顯示 module/IP 欄位 + CSV 匯出含新欄位
+- [ ] ISO 27001 控制項自評報告頁面（可選，低優先）
 
 ---
 

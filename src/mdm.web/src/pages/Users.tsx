@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { UserPlus, Trash2, Edit3, X, Save, ShieldCheck, ShieldOff, Shield } from "lucide-react";
+import { UserPlus, Trash2, Edit3, X, Save, ShieldCheck, ShieldOff, ChevronDown, ChevronUp } from "lucide-react";
 import apiClient from "../lib/apiClient";
 import { useAuthStore } from "../stores/authStore";
 import { useDialog } from "../components/DialogProvider";
@@ -10,7 +10,9 @@ interface UserRow {
   username: string;
   display_name: string;
   role: string;
+  system_role: string;
   is_active: boolean;
+  permissions: Record<string, string>;
 }
 
 const modules = ["asset", "mdm", "rental"] as const;
@@ -24,6 +26,10 @@ const levelLabels: Record<string, string> = {
   none: "無權限", viewer: "檢視者", requester: "申請者",
   operator: "操作員", approver: "核准者", manager: "管理者",
 };
+const levelBadge: Record<string, string> = {
+  none: "", viewer: "badge-ghost", requester: "badge-info",
+  operator: "badge-accent", approver: "badge-warning", manager: "badge-primary",
+};
 
 export function Users() {
   const { t } = useTranslation();
@@ -32,16 +38,14 @@ export function Users() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [form, setForm] = useState({ username: "", password: "", role: "viewer", displayName: "" });
-  const [editForm, setEditForm] = useState({ role: "", display_name: "", password: "" });
   const [saving, setSaving] = useState(false);
 
-  // Permission editing
-  const [permUserId, setPermUserId] = useState<string | null>(null);
-  const [permUsername, setPermUsername] = useState("");
+  // Inline edit state
+  const [editForm, setEditForm] = useState({ display_name: "", password: "" });
   const [permForm, setPermForm] = useState<Record<string, string>>({});
-  const [permSaving, setPermSaving] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
 
   const loadUsers = async () => {
     setLoading(true);
@@ -67,25 +71,37 @@ export function Users() {
     } finally { setSaving(false); }
   };
 
-  const startEdit = (u: UserRow) => {
-    setEditingId(u.id);
-    setEditForm({ role: u.role, display_name: u.display_name, password: "" });
+  const toggleExpand = (u: UserRow) => {
+    if (expandedId === u.id) {
+      setExpandedId(null);
+    } else {
+      setExpandedId(u.id);
+      setEditForm({ display_name: u.display_name, password: "" });
+      const perms: Record<string, string> = {};
+      for (const m of modules) perms[m] = u.permissions[m] || "none";
+      setPermForm(perms);
+    }
   };
 
-  const handleUpdate = async () => {
-    if (!editingId) return;
-    setSaving(true);
+  const handleSaveUser = async (userId: string) => {
+    setEditSaving(true);
     try {
-      const body: Record<string, unknown> = {};
-      if (editForm.role) body.role = editForm.role;
-      if (editForm.display_name) body.display_name = editForm.display_name;
-      if (editForm.password) body.password = editForm.password;
-      await apiClient.put(`/api/users/${editingId}`, body);
-      setEditingId(null);
+      // Save user fields
+      const userBody: Record<string, unknown> = {};
+      if (editForm.display_name) userBody.display_name = editForm.display_name;
+      if (editForm.password) userBody.password = editForm.password;
+      if (Object.keys(userBody).length > 0) {
+        await apiClient.put(`/api/users/${userId}`, userBody);
+      }
+
+      // Save permissions
+      await apiClient.put(`/api/users-permissions/${userId}`, permForm);
+
+      setExpandedId(null);
       loadUsers();
     } catch (err) {
-      await dialog.error("更新失敗: " + (err instanceof Error ? err.message : ""));
-    } finally { setSaving(false); }
+      await dialog.error("儲存失敗: " + (err instanceof Error ? err.message : ""));
+    } finally { setEditSaving(false); }
   };
 
   const toggleActive = async (id: string, currentlyActive: boolean) => {
@@ -103,38 +119,34 @@ export function Users() {
     } catch (err) { await dialog.error(t("users.deleteFailed") + ": " + (err instanceof Error ? err.message : "")); }
   };
 
-  const openPermissions = async (u: UserRow) => {
-    setPermUserId(u.id);
-    setPermUsername(u.display_name || u.username);
+  const toggleSysAdmin = async (u: UserRow) => {
+    const newRole = u.system_role === "sys_admin" ? "user" : "sys_admin";
+    const msg = newRole === "sys_admin"
+      ? `確定要將「${u.display_name || u.username}」設為系統管理員？`
+      : `確定要取消「${u.display_name || u.username}」的系統管理員身份？`;
+    if (!(await dialog.confirm(msg))) return;
     try {
-      const { data } = await apiClient.get(`/api/users-permissions/${u.id}`);
-      const perms: Record<string, string> = {};
-      for (const m of modules) perms[m] = data[m] || "none";
-      setPermForm(perms);
-    } catch {
-      const perms: Record<string, string> = {};
-      for (const m of modules) perms[m] = "none";
-      setPermForm(perms);
-    }
-  };
-
-  const savePermissions = async () => {
-    if (!permUserId) return;
-    setPermSaving(true);
-    try {
-      await apiClient.put(`/api/users-permissions/${permUserId}`, permForm);
-      setPermUserId(null);
+      await apiClient.put(`/api/users/${u.id}`, { system_role: newRole });
+      loadUsers();
     } catch (err) {
-      await dialog.error("權限更新失敗: " + (err instanceof Error ? err.message : ""));
-    } finally { setPermSaving(false); }
+      await dialog.error("操作失敗: " + (err instanceof Error ? err.message : ""));
+    }
   };
 
-  const roleBadge = (role: string) => {
-    switch (role) {
-      case "admin": return "badge-primary";
-      case "operator": return "badge-accent";
-      default: return "badge-ghost";
-    }
+  const permBadges = (perms: Record<string, string>) => {
+    const entries = modules
+      .map((m) => ({ module: m, level: perms[m] || "none" }))
+      .filter((e) => e.level !== "none");
+    if (entries.length === 0) return <span className="text-base-content/30 text-xs">無模組權限</span>;
+    return (
+      <div className="flex flex-wrap gap-1">
+        {entries.map((e) => (
+          <span key={e.module} className={`badge badge-sm ${levelBadge[e.level] || "badge-ghost"}`}>
+            {moduleLabels[e.module]}：{levelLabels[e.level]}
+          </span>
+        ))}
+      </div>
+    );
   };
 
   return (
@@ -149,6 +161,7 @@ export function Users() {
         </button>
       </div>
 
+      {/* Create form */}
       {showCreate && (
         <div className="card bg-base-100 shadow">
           <div className="card-body">
@@ -186,110 +199,130 @@ export function Users() {
         </div>
       )}
 
-      <div className="card bg-base-100 shadow">
-        <div className="overflow-x-auto">
-          <table className="table table-sm">
-            <thead>
-              <tr>
-                <th>{t("users.username")}</th>
-                <th>{t("users.displayName")}</th>
-                <th>{t("users.role")}</th>
-                <th>{t("common.status")}</th>
-                <th>{t("common.actions")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={5} className="text-center py-8"><span className="loading loading-spinner loading-md"></span></td></tr>
-              ) : users.length === 0 ? (
-                <tr><td colSpan={5} className="text-center py-8 text-base-content/50">{t("users.noUsers")}</td></tr>
-              ) : users.map((u) => (
-                <tr key={u.id} className={`hover ${!u.is_active ? "opacity-50" : ""}`}>
-                  <td className="font-medium">{u.username}</td>
-                  <td>
-                    {editingId === u.id ? (
-                      <input type="text" value={editForm.display_name} onChange={(e) => setEditForm({ ...editForm, display_name: e.target.value })}
-                        className="input input-bordered input-xs w-32" />
-                    ) : (u.display_name || "-")}
-                  </td>
-                  <td>
-                    {editingId === u.id ? (
-                      <select value={editForm.role} onChange={(e) => setEditForm({ ...editForm, role: e.target.value })} className="select select-bordered select-xs">
-                        <option value="viewer">{t("users.roles.viewer")}</option>
-                        <option value="operator">{t("users.roles.operator")}</option>
-                        <option value="admin">{t("users.roles.admin")}</option>
-                      </select>
-                    ) : (
-                      <span className={`badge badge-sm ${roleBadge(u.role)}`}>{t(`users.roles.${u.role}`)}</span>
-                    )}
-                  </td>
-                  <td>
-                    <button onClick={() => toggleActive(u.id, u.is_active)}>
-                      {u.is_active ? (
-                        <span className="badge badge-success badge-sm gap-1"><ShieldCheck size={10} /> 啟用</span>
-                      ) : (
-                        <span className="badge badge-error badge-sm gap-1"><ShieldOff size={10} /> 停用</span>
-                      )}
-                    </button>
-                  </td>
-                  <td>
-                    {editingId === u.id ? (
-                      <div className="flex gap-1 items-center">
-                        <input type="password" placeholder="新密碼(選填)" value={editForm.password}
-                          onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
-                          className="input input-bordered input-xs w-28" />
-                        <button onClick={handleUpdate} disabled={saving} className="btn btn-success btn-xs gap-1"><Save size={12} /></button>
-                        <button onClick={() => setEditingId(null)} className="btn btn-ghost btn-xs"><X size={12} /></button>
+      {/* User list */}
+      {loading ? (
+        <div className="flex justify-center py-12"><span className="loading loading-spinner loading-lg"></span></div>
+      ) : users.length === 0 ? (
+        <div className="text-center py-12 text-base-content/50">{t("users.noUsers")}</div>
+      ) : (
+        <div className="space-y-2">
+          {users.map((u) => {
+            const isSysAdmin = u.system_role === "sys_admin";
+            const isExpanded = expandedId === u.id;
+            return (
+              <div key={u.id} className={`card bg-base-100 shadow-sm ${!u.is_active ? "opacity-50" : ""}`}>
+                <div className="card-body p-4">
+                  {/* Summary row */}
+                  <div className="flex items-center gap-3 cursor-pointer" onClick={() => toggleExpand(u)}>
+                    {/* Avatar */}
+                    <div className="avatar placeholder">
+                      <div className={`w-10 rounded-full ${isSysAdmin ? "bg-primary text-primary-content" : "bg-base-300 text-base-content"}`}>
+                        <span className="text-sm font-bold">{(u.display_name || u.username)[0].toUpperCase()}</span>
                       </div>
-                    ) : (
-                      <div className="flex gap-1">
-                        <button onClick={() => startEdit(u)} className="btn btn-ghost btn-xs"><Edit3 size={14} /></button>
-                        <button onClick={() => openPermissions(u)} className="btn btn-ghost btn-xs" title="模組權限"><Shield size={14} /></button>
-                        <button onClick={() => handleDelete(u.id, u.username)} className="btn btn-ghost btn-xs text-error"><Trash2 size={14} /></button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                    </div>
 
-      {/* Module Permissions Modal */}
-      {permUserId && (
-        <dialog className="modal modal-open">
-          <div className="modal-box">
-            <h3 className="font-bold text-lg mb-1">模組權限設定</h3>
-            <p className="text-sm text-base-content/60 mb-4">{permUsername}</p>
-            <div className="space-y-4">
-              {modules.map((m) => (
-                <div key={m} className="form-control">
-                  <label className="label">
-                    <span className="label-text font-medium">{moduleLabels[m]}</span>
-                  </label>
-                  <select
-                    value={permForm[m] || "none"}
-                    onChange={(e) => setPermForm({ ...permForm, [m]: e.target.value })}
-                    className="select select-bordered select-sm w-full"
-                  >
-                    {levelOptions[m].map((level) => (
-                      <option key={level} value={level}>{levelLabels[level]}</option>
-                    ))}
-                  </select>
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold">{u.display_name || u.username}</span>
+                        {u.display_name && <span className="text-xs text-base-content/50">@{u.username}</span>}
+                        {isSysAdmin && <span className="badge badge-primary badge-sm">系統管理員</span>}
+                        {!u.is_active && <span className="badge badge-error badge-sm">已停用</span>}
+                      </div>
+                      <div className="mt-1">
+                        {isSysAdmin
+                          ? <span className="text-xs text-primary">擁有所有模組完整權限</span>
+                          : permBadges(u.permissions)
+                        }
+                      </div>
+                    </div>
+
+                    {/* Quick actions */}
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      <button onClick={() => toggleActive(u.id, u.is_active)}
+                        className="btn btn-ghost btn-xs" title={u.is_active ? "停用" : "啟用"}>
+                        {u.is_active ? <ShieldCheck size={14} className="text-success" /> : <ShieldOff size={14} className="text-error" />}
+                      </button>
+                      <button onClick={() => handleDelete(u.id, u.username)} className="btn btn-ghost btn-xs text-error" title="刪除">
+                        <Trash2 size={14} />
+                      </button>
+                      {isExpanded ? <ChevronUp size={16} className="opacity-40" /> : <ChevronDown size={16} className="opacity-40" />}
+                    </div>
+                  </div>
+
+                  {/* Expanded edit panel */}
+                  {isExpanded && (
+                    <div className="border-t border-base-300 mt-3 pt-4 space-y-4">
+                      {/* Basic info */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="form-control">
+                          <label className="label py-1"><span className="label-text text-xs">{t("users.displayName")}</span></label>
+                          <input type="text" value={editForm.display_name}
+                            onChange={(e) => setEditForm({ ...editForm, display_name: e.target.value })}
+                            className="input input-bordered input-sm" />
+                        </div>
+                        <div className="form-control">
+                          <label className="label py-1"><span className="label-text text-xs">新密碼（留空不修改）</span></label>
+                          <input type="password" value={editForm.password}
+                            onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+                            className="input input-bordered input-sm" placeholder="••••••" />
+                        </div>
+                        <div className="form-control">
+                          <label className="label py-1"><span className="label-text text-xs">系統角色</span></label>
+                          <button onClick={() => toggleSysAdmin(u)}
+                            className={`btn btn-sm ${isSysAdmin ? "btn-primary" : "btn-outline"}`}>
+                            {isSysAdmin ? "系統管理員（點擊取消）" : "一般使用者（點擊升為管理員）"}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Module permissions */}
+                      {!isSysAdmin && (
+                        <div>
+                          <h4 className="font-medium text-sm mb-2">模組權限</h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            {modules.map((m) => (
+                              <div key={m} className="form-control">
+                                <label className="label py-1"><span className="label-text text-xs">{moduleLabels[m]}</span></label>
+                                <div className="flex gap-1 flex-wrap">
+                                  {levelOptions[m].map((level) => (
+                                    <button key={level}
+                                      onClick={() => setPermForm({ ...permForm, [m]: level })}
+                                      className={`btn btn-xs ${permForm[m] === level
+                                        ? (level === "none" ? "btn-ghost btn-active" : "btn-primary")
+                                        : "btn-ghost"
+                                      }`}
+                                    >
+                                      {levelLabels[level]}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {isSysAdmin && (
+                        <div className="alert alert-info py-2">
+                          <span className="text-sm">系統管理員自動擁有所有模組的完整權限，無需個別設定。</span>
+                        </div>
+                      )}
+
+                      {/* Save / Cancel */}
+                      <div className="flex gap-2">
+                        <button onClick={() => handleSaveUser(u.id)} disabled={editSaving} className="btn btn-success btn-sm gap-1">
+                          {editSaving ? <span className="loading loading-spinner loading-xs"></span> : <Save size={14} />}
+                          儲存變更
+                        </button>
+                        <button onClick={() => setExpandedId(null)} className="btn btn-ghost btn-sm">{t("common.cancel")}</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
-            <div className="modal-action">
-              <button onClick={savePermissions} disabled={permSaving} className="btn btn-primary btn-sm gap-1">
-                {permSaving && <span className="loading loading-spinner loading-xs"></span>}
-                儲存變更
-              </button>
-              <button onClick={() => setPermUserId(null)} className="btn btn-ghost btn-sm">取消</button>
-            </div>
-          </div>
-          <div className="modal-backdrop" onClick={() => setPermUserId(null)}></div>
-        </dialog>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );

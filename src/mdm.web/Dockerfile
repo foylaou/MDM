@@ -4,6 +4,8 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY . .
+ARG VITE_AG_GRID_LICENSE
+ENV VITE_AG_GRID_LICENSE=${VITE_AG_GRID_LICENSE}
 RUN pnpm run build
 
 FROM nginx:alpine

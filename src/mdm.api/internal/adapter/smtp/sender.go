@@ -92,6 +92,14 @@ func sanitizeAddress(addr string) (string, error) {
 	return parsed.Address, nil
 }
 
+func sanitizeHeaderValue(v string) (string, error) {
+	trimmed := strings.TrimSpace(v)
+	if strings.ContainsAny(trimmed, "\r\n") {
+		return "", errors.New("smtp: invalid header value")
+	}
+	return trimmed, nil
+}
+
 func sendWith(cfg config.SMTPConfig, to, subject, htmlBody string) error {
 	addr := net.JoinHostPort(cfg.Host, cfg.Port)
 
@@ -103,15 +111,23 @@ func sendWith(cfg config.SMTPConfig, to, subject, htmlBody string) error {
 	if err != nil {
 		return err
 	}
+	safeSubject, err := sanitizeHeaderValue(subject)
+	if err != nil {
+		return err
+	}
+	safeFromName, err := sanitizeHeaderValue(cfg.FromName)
+	if err != nil {
+		return err
+	}
 
 	fromHeader := safeFrom
-	if cfg.FromName != "" {
-		fromHeader = fmt.Sprintf("%s <%s>", cfg.FromName, safeFrom)
+	if safeFromName != "" {
+		fromHeader = (&mail.Address{Name: safeFromName, Address: safeFrom}).String()
 	}
 
 	msg := "From: " + fromHeader + "\r\n" +
 		"To: " + safeTo + "\r\n" +
-		"Subject: " + subject + "\r\n" +
+		"Subject: " + safeSubject + "\r\n" +
 		"MIME-Version: 1.0\r\n" +
 		"Content-Type: text/html; charset=\"UTF-8\"\r\n" +
 		"\r\n" +

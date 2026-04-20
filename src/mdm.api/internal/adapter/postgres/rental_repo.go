@@ -16,15 +16,54 @@ type RentalRepo struct{ pool *pgxpool.Pool }
 
 func NewRentalRepo(pool *pgxpool.Pool) *RentalRepo { return &RentalRepo{pool: pool} }
 
-func (r *RentalRepo) List(ctx context.Context, status, deviceUdid string, showArchived bool) ([]*domain.Rental, error) {
-	q := `SELECT r.id, r.device_udid, r.borrower_id, r.borrower_name, r.approver_id, r.approver_name,
+const rentalSelectColumns = `r.id, r.asset_id, r.device_udid, r.borrower_id, r.borrower_name, r.approver_id, r.approver_name,
 	             r.status, r.purpose, r.borrow_date, r.expected_return, r.actual_return, r.notes,
 	             r.created_at, r.updated_at,
 	             COALESCE(d.device_name,'') as device_name, COALESCE(d.serial_number,'') as device_serial,
+	             COALESCE(a.asset_number,'') as asset_number, COALESCE(a.name,'') as asset_name,
 	             a.custodian_id, COALESCE(a.custodian_name,'') as custodian_name,
-	             r.rental_number, r.is_archived, r.return_checklist, r.return_notes
-	      FROM rentals r LEFT JOIN devices d ON r.device_udid = d.udid
-	      LEFT JOIN assets a ON a.device_udid = r.device_udid WHERE 1=1`
+	             r.rental_number, r.is_archived, r.return_checklist, r.return_notes`
+
+const rentalFromJoin = `FROM rentals r
+	LEFT JOIN assets a ON a.id = r.asset_id
+	LEFT JOIN devices d ON d.udid = COALESCE(r.device_udid, a.device_udid)`
+
+func scanRental(rows interface {
+	Scan(dest ...interface{}) error
+}) (*domain.Rental, error) {
+	rental := &domain.Rental{}
+	var assetID, approverID *string
+	var deviceUdid *string
+	var expectedReturn, actualReturn *time.Time
+	var checklistJSON []byte
+	err := rows.Scan(
+		&rental.ID, &assetID, &deviceUdid, &rental.BorrowerID, &rental.BorrowerName,
+		&approverID, &rental.ApproverName,
+		&rental.Status, &rental.Purpose, &rental.BorrowDate, &expectedReturn, &actualReturn, &rental.Notes,
+		&rental.CreatedAt, &rental.UpdatedAt,
+		&rental.DeviceName, &rental.DeviceSerial,
+		&rental.AssetNumber, &rental.AssetName,
+		&rental.CustodianID, &rental.CustodianName,
+		&rental.RentalNumber, &rental.IsArchived, &checklistJSON, &rental.ReturnNotes,
+	)
+	if err != nil {
+		return nil, err
+	}
+	rental.AssetID = assetID
+	if deviceUdid != nil {
+		rental.DeviceUdid = *deviceUdid
+	}
+	rental.ApproverID = approverID
+	rental.ExpectedReturn = expectedReturn
+	rental.ActualReturn = actualReturn
+	if len(checklistJSON) > 0 {
+		json.Unmarshal(checklistJSON, &rental.ReturnChecklist)
+	}
+	return rental, nil
+}
+
+func (r *RentalRepo) List(ctx context.Context, status, deviceUdid string, showArchived bool) ([]*domain.Rental, error) {
+	q := `SELECT ` + rentalSelectColumns + ` ` + rentalFromJoin + ` WHERE 1=1`
 	args := []interface{}{}
 	idx := 1
 	if status != "" {
@@ -50,26 +89,9 @@ func (r *RentalRepo) List(ctx context.Context, status, deviceUdid string, showAr
 
 	var rentals []*domain.Rental
 	for rows.Next() {
-		rental := &domain.Rental{}
-		var approverID *string
-		var expectedReturn, actualReturn *time.Time
-		var checklistJSON []byte
-		if err := rows.Scan(
-			&rental.ID, &rental.DeviceUdid, &rental.BorrowerID, &rental.BorrowerName,
-			&approverID, &rental.ApproverName,
-			&rental.Status, &rental.Purpose, &rental.BorrowDate, &expectedReturn, &actualReturn, &rental.Notes,
-			&rental.CreatedAt, &rental.UpdatedAt,
-			&rental.DeviceName, &rental.DeviceSerial,
-			&rental.CustodianID, &rental.CustodianName,
-			&rental.RentalNumber, &rental.IsArchived, &checklistJSON, &rental.ReturnNotes,
-		); err != nil {
+		rental, err := scanRental(rows)
+		if err != nil {
 			continue
-		}
-		rental.ApproverID = approverID
-		rental.ExpectedReturn = expectedReturn
-		rental.ActualReturn = actualReturn
-		if len(checklistJSON) > 0 {
-			json.Unmarshal(checklistJSON, &rental.ReturnChecklist)
 		}
 		rentals = append(rentals, rental)
 	}
@@ -78,10 +100,14 @@ func (r *RentalRepo) List(ctx context.Context, status, deviceUdid string, showAr
 
 func (r *RentalRepo) Create(ctx context.Context, rental *domain.Rental) (string, error) {
 	var id string
+	var udid interface{}
+	if rental.DeviceUdid != "" {
+		udid = rental.DeviceUdid
+	}
 	err := r.pool.QueryRow(ctx,
-		`INSERT INTO rentals (device_udid, borrower_id, borrower_name, purpose, expected_return, notes, rental_number)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-		rental.DeviceUdid, rental.BorrowerID, rental.BorrowerName, rental.Purpose,
+		`INSERT INTO rentals (asset_id, device_udid, borrower_id, borrower_name, purpose, expected_return, notes, rental_number)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+		rental.AssetID, udid, rental.BorrowerID, rental.BorrowerName, rental.Purpose,
 		rental.ExpectedReturn, rental.Notes, rental.RentalNumber,
 	).Scan(&id)
 	return id, err
@@ -90,13 +116,18 @@ func (r *RentalRepo) Create(ctx context.Context, rental *domain.Rental) (string,
 func (r *RentalRepo) GetByID(ctx context.Context, id string) (*domain.Rental, error) {
 	rental := &domain.Rental{}
 	var rentalNumber int
+	var deviceUdid, assetID *string
 	err := r.pool.QueryRow(ctx,
-		`SELECT device_udid, status, rental_number FROM rentals WHERE id=$1`, id,
-	).Scan(&rental.DeviceUdid, &rental.Status, &rentalNumber)
+		`SELECT asset_id, device_udid, status, rental_number FROM rentals WHERE id=$1`, id,
+	).Scan(&assetID, &deviceUdid, &rental.Status, &rentalNumber)
 	if err != nil {
 		return nil, err
 	}
 	rental.ID = id
+	rental.AssetID = assetID
+	if deviceUdid != nil {
+		rental.DeviceUdid = *deviceUdid
+	}
 	rental.RentalNumber = rentalNumber
 	return rental, nil
 }
@@ -151,7 +182,7 @@ func (r *RentalRepo) Archive(ctx context.Context, ids []string) error {
 }
 
 func (r *RentalRepo) ListDeviceUdidsByNumber(ctx context.Context, rentalNumber int) ([]string, error) {
-	rows, err := r.pool.Query(ctx, `SELECT device_udid FROM rentals WHERE rental_number=$1`, rentalNumber)
+	rows, err := r.pool.Query(ctx, `SELECT device_udid FROM rentals WHERE rental_number=$1 AND device_udid IS NOT NULL`, rentalNumber)
 	if err != nil {
 		return nil, err
 	}
@@ -165,6 +196,23 @@ func (r *RentalRepo) ListDeviceUdidsByNumber(ctx context.Context, rentalNumber i
 	return udids, nil
 }
 
+// ListAssetIDsByNumber returns all asset_ids rented under a single rental_number.
+// Preferred over ListDeviceUdidsByNumber because it covers standalone assets too.
+func (r *RentalRepo) ListAssetIDsByNumber(ctx context.Context, rentalNumber int) ([]string, error) {
+	rows, err := r.pool.Query(ctx, `SELECT asset_id FROM rentals WHERE rental_number=$1 AND asset_id IS NOT NULL`, rentalNumber)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		rows.Scan(&id)
+		ids = append(ids, id)
+	}
+	return ids, nil
+}
+
 func (r *RentalRepo) GetBorrowerInfo(ctx context.Context, rentalID string) (string, string, error) {
 	var borrowerID, borrowerName string
 	err := r.pool.QueryRow(ctx,
@@ -175,15 +223,7 @@ func (r *RentalRepo) GetBorrowerInfo(ctx context.Context, rentalID string) (stri
 
 // ListOverdue returns active rentals whose expected_return is before today (grouped by rental_number, one row per group).
 func (r *RentalRepo) ListOverdue(ctx context.Context) ([]*domain.Rental, error) {
-	q := `SELECT DISTINCT ON (r.rental_number)
-	             r.id, r.device_udid, r.borrower_id, r.borrower_name, r.approver_id, r.approver_name,
-	             r.status, r.purpose, r.borrow_date, r.expected_return, r.actual_return, r.notes,
-	             r.created_at, r.updated_at,
-	             COALESCE(d.device_name,'') as device_name, COALESCE(d.serial_number,'') as device_serial,
-	             a.custodian_id, COALESCE(a.custodian_name,'') as custodian_name,
-	             r.rental_number, r.is_archived, r.return_checklist, r.return_notes
-	      FROM rentals r LEFT JOIN devices d ON r.device_udid = d.udid
-	      LEFT JOIN assets a ON a.device_udid = r.device_udid
+	q := `SELECT DISTINCT ON (r.rental_number) ` + rentalSelectColumns + ` ` + rentalFromJoin + `
 	      WHERE r.status = 'active' AND r.expected_return IS NOT NULL AND r.expected_return < CURRENT_DATE
 	      ORDER BY r.rental_number, r.created_at`
 
@@ -195,26 +235,9 @@ func (r *RentalRepo) ListOverdue(ctx context.Context) ([]*domain.Rental, error) 
 
 	var rentals []*domain.Rental
 	for rows.Next() {
-		rental := &domain.Rental{}
-		var approverID *string
-		var expectedReturn, actualReturn *time.Time
-		var checklistJSON []byte
-		if err := rows.Scan(
-			&rental.ID, &rental.DeviceUdid, &rental.BorrowerID, &rental.BorrowerName,
-			&approverID, &rental.ApproverName,
-			&rental.Status, &rental.Purpose, &rental.BorrowDate, &expectedReturn, &actualReturn, &rental.Notes,
-			&rental.CreatedAt, &rental.UpdatedAt,
-			&rental.DeviceName, &rental.DeviceSerial,
-			&rental.CustodianID, &rental.CustodianName,
-			&rental.RentalNumber, &rental.IsArchived, &checklistJSON, &rental.ReturnNotes,
-		); err != nil {
+		rental, err := scanRental(rows)
+		if err != nil {
 			continue
-		}
-		rental.ApproverID = approverID
-		rental.ExpectedReturn = expectedReturn
-		rental.ActualReturn = actualReturn
-		if len(checklistJSON) > 0 {
-			json.Unmarshal(checklistJSON, &rental.ReturnChecklist)
 		}
 		rentals = append(rentals, rental)
 	}

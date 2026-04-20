@@ -52,3 +52,6 @@ var Migration016SQL string
 
 //go:embed migrations/017_mail_settings.up.sql
 var Migration017SQL string
+
+//go:embed migrations/018_rental_asset_id.up.sql
+var Migration018SQL string

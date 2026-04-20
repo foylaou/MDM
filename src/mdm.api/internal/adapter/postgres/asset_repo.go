@@ -159,6 +159,72 @@ func (r *AssetRepo) Delete(ctx context.Context, id string) error {
 	return err
 }
 
+// RentalPickableAsset is the lightweight shape returned to the rental asset picker.
+// Covers both MDM-linked and standalone assets.
+type RentalPickableAsset struct {
+	AssetID      string
+	AssetNumber  string
+	Name         string
+	Spec         string
+	DeviceUdid   *string
+	SerialNumber string
+	Model        string
+	OSVersion    string
+	AssetStatus  string
+	CategoryID   *string
+	CategoryName string
+}
+
+// ListRentalPickable returns every asset that could potentially be borrowed, plus
+// its MDM device info if linked. Status is computed so the client can filter:
+// "rented" if an open rental exists, otherwise the asset's own asset_status.
+func (r *AssetRepo) ListRentalPickable(ctx context.Context) ([]*RentalPickableAsset, error) {
+	q := `SELECT a.id, a.asset_number, a.name, COALESCE(a.spec,''),
+	             a.device_udid,
+	             COALESCE(d.serial_number,''), COALESCE(d.model,''), COALESCE(d.os_version,''),
+	             COALESCE(a.asset_status,'available') as asset_status,
+	             a.category_id, COALESCE(c.name,''),
+	             EXISTS(SELECT 1 FROM rentals rl WHERE rl.asset_id = a.id AND rl.status IN ('pending','approved','active')) as is_rented
+	      FROM assets a
+	      LEFT JOIN devices d ON a.device_udid = d.udid
+	      LEFT JOIN categories c ON a.category_id = c.id
+	      ORDER BY a.name, a.asset_number`
+	rows, err := r.pool.Query(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []*RentalPickableAsset
+	for rows.Next() {
+		it := &RentalPickableAsset{}
+		var isRented bool
+		if err := rows.Scan(&it.AssetID, &it.AssetNumber, &it.Name, &it.Spec,
+			&it.DeviceUdid,
+			&it.SerialNumber, &it.Model, &it.OSVersion,
+			&it.AssetStatus, &it.CategoryID, &it.CategoryName, &isRented); err != nil {
+			continue
+		}
+		if isRented {
+			it.AssetStatus = "rented"
+		}
+		out = append(out, it)
+	}
+	return out, nil
+}
+
+// CheckAssetAvailability mirrors rental.CheckDeviceAvailability but uses asset_id,
+// so standalone assets can be checked too.
+func (r *AssetRepo) CheckAssetAvailability(ctx context.Context, assetID string) (status string, isRented bool, name string, err error) {
+	err = r.pool.QueryRow(ctx,
+		`SELECT COALESCE(a.asset_status,'available'),
+		        EXISTS(SELECT 1 FROM rentals rl WHERE rl.asset_id=$1 AND rl.status IN ('pending','approved','active')),
+		        COALESCE(a.name, a.asset_number, '')
+		 FROM assets a WHERE a.id=$1`, assetID,
+	).Scan(&status, &isRented, &name)
+	return
+}
+
 func (r *AssetRepo) UpdateStatus(ctx context.Context, udid string, status string) error {
 	_, err := r.pool.Exec(ctx,
 		`UPDATE assets SET asset_status=$1, updated_at=now() WHERE device_udid=$2`, status, udid)
@@ -203,6 +269,23 @@ func (r *AssetRepo) ClearHolderByUdid(ctx context.Context, udid string) error {
 	_, err := r.pool.Exec(ctx,
 		`UPDATE assets SET current_holder_id=NULL, current_holder_name='', current_holder_since=NULL, updated_at=now() WHERE device_udid=$1`,
 		udid)
+	return err
+}
+
+// SetHolderByID records the current holder of an asset identified by asset id.
+// Used by the rental flow so standalone (non-MDM) assets can also be borrowed.
+func (r *AssetRepo) SetHolderByID(ctx context.Context, assetID string, holderID string, holderName string) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE assets SET current_holder_id=$1, current_holder_name=$2, current_holder_since=now(), updated_at=now() WHERE id=$3`,
+		holderID, holderName, assetID)
+	return err
+}
+
+// ClearHolderByID clears the current holder of an asset identified by asset id.
+func (r *AssetRepo) ClearHolderByID(ctx context.Context, assetID string) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE assets SET current_holder_id=NULL, current_holder_name='', current_holder_since=NULL, updated_at=now() WHERE id=$1`,
+		assetID)
 	return err
 }
 

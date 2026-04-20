@@ -90,7 +90,9 @@ export function AssetList() {
     try {
       const form = new FormData();
       form.append("file", file);
-      const { data } = await apiClient.post("/api/assets-import", form);
+      const { data } = await apiClient.post("/api/assets-import", form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
       const lines = [
         t("assets.importCreated", { count: data.created ?? 0 }),
         t("assets.importFailed", { count: data.failed ?? 0 }),

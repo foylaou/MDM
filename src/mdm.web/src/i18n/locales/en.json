@@ -22,6 +22,7 @@
     "group_admin": "Administration",
     "users": "Users",
     "audit": "Audit Logs",
+    "settings": "System Settings",
     "forbidden": "Access Denied",
     "forbidden_desc": "You do not have permission to access this module. Please contact your administrator."
   },
@@ -274,7 +275,14 @@
     "edit": "Edit",
     "noAsset": "No asset info",
     "syncInfo": "Sync Device Info",
-    "syncingInfo": "Syncing..."
+    "syncingInfo": "Syncing...",
+    "downloadTemplate": "Template",
+    "import": "Import",
+    "importing": "Importing...",
+    "importBadFormat": "Please choose a .xlsx file",
+    "importCreated": "{{count}} created",
+    "importFailed": "{{count}} failed",
+    "importError": "Import failed"
   },
   "custody": {
     "assignTitle": "Assign Custodian",
@@ -357,5 +365,34 @@
   "stream": {
     "on": "Event stream enabled",
     "off": "Event stream disabled"
+  },
+  "settings": {
+    "subtitle": "Mail server configuration (outgoing SMTP, incoming IMAP/POP3)",
+    "outgoing": "Outgoing (SMTP)",
+    "incoming": "Incoming (IMAP / POP3)",
+    "enabled": "Enabled",
+    "host": "Host",
+    "port": "Port",
+    "username": "Username",
+    "password": "Password",
+    "passwordSet": "(set — leave blank to keep)",
+    "from": "From address",
+    "fromName": "From name",
+    "useTls": "Use TLS",
+    "protocol": "Protocol",
+    "mailbox": "Mailbox",
+    "testTo": "Test recipient",
+    "testSmtp": "Send test email",
+    "testSmtpOk": "Test email sent to {{to}}",
+    "testSmtpFailed": "Failed to send",
+    "testIncoming": "Connection test",
+    "testIncomingOk": "Connection OK: {{address}}",
+    "testIncomingFailed": "Connection failed",
+    "testIncomingHint": "Tests only TCP/TLS reachability and server greeting (does not verify login).",
+    "testToRequired": "Please enter a test recipient",
+    "saveOk": "Settings saved",
+    "saveFailed": "Save failed",
+    "loadFailed": "Failed to load settings",
+    "updatedAt": "Last updated: {{at}}"
   }
 }

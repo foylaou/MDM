@@ -3,33 +3,84 @@ package smtp
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"log"
 	"net"
 	"net/smtp"
+	"sync"
 
 	"github.com/anthropics/mdm-server/internal/config"
 )
 
-// Sender implements port.EmailSender via SMTP.
+// Sender implements port.EmailSender via SMTP. It holds a mutable config so
+// the settings controller can hot-reload credentials without a restart.
 type Sender struct {
-	cfg config.SMTPConfig
+	mu      sync.RWMutex
+	cfg     config.SMTPConfig
+	enabled bool
 }
 
-// NewSender returns an EmailSender. Returns nil if SMTP is not configured.
+// NewSender always returns a sender — it may be disabled until SetConfig is
+// called with a valid configuration. Callers can safely treat a nil return
+// from NewSender as "no SMTP configured"; callers that want hot-reload should
+// keep the instance and call SetConfig.
 func NewSender(cfg config.SMTPConfig) *Sender {
-	if cfg.Host == "" || cfg.From == "" {
-		return nil
-	}
-	return &Sender{cfg: cfg}
+	s := &Sender{cfg: cfg}
+	s.enabled = cfg.Host != "" && cfg.From != ""
+	return s
+}
+
+// SetConfig replaces the active SMTP config. Passing a zero-value config with
+// empty host/from disables the sender.
+func (s *Sender) SetConfig(cfg config.SMTPConfig) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cfg = cfg
+	s.enabled = cfg.Host != "" && cfg.From != ""
+}
+
+// Config returns a copy of the current config.
+func (s *Sender) Config() config.SMTPConfig {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.cfg
+}
+
+// Enabled reports whether the sender has a usable config.
+func (s *Sender) Enabled() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.enabled
 }
 
 func (s *Sender) Send(_ context.Context, to string, subject string, htmlBody string) error {
-	addr := net.JoinHostPort(s.cfg.Host, s.cfg.Port)
+	s.mu.RLock()
+	cfg := s.cfg
+	enabled := s.enabled
+	s.mu.RUnlock()
 
-	fromHeader := s.cfg.From
-	if s.cfg.FromName != "" {
-		fromHeader = fmt.Sprintf("%s <%s>", s.cfg.FromName, s.cfg.From)
+	if !enabled {
+		return errors.New("smtp: not configured")
+	}
+	return sendWith(cfg, to, subject, htmlBody)
+}
+
+// SendWith allows callers (e.g. settings test endpoint) to send with an ad-hoc
+// config without mutating the registered sender.
+func SendWith(cfg config.SMTPConfig, to, subject, htmlBody string) error {
+	if cfg.Host == "" || cfg.From == "" {
+		return errors.New("smtp: host and from are required")
+	}
+	return sendWith(cfg, to, subject, htmlBody)
+}
+
+func sendWith(cfg config.SMTPConfig, to, subject, htmlBody string) error {
+	addr := net.JoinHostPort(cfg.Host, cfg.Port)
+
+	fromHeader := cfg.From
+	if cfg.FromName != "" {
+		fromHeader = fmt.Sprintf("%s <%s>", cfg.FromName, cfg.From)
 	}
 
 	msg := "From: " + fromHeader + "\r\n" +
@@ -40,13 +91,13 @@ func (s *Sender) Send(_ context.Context, to string, subject string, htmlBody str
 		"\r\n" +
 		htmlBody
 
-	auth := smtp.PlainAuth("", s.cfg.Username, s.cfg.Password, s.cfg.Host)
+	auth := smtp.PlainAuth("", cfg.Username, cfg.Password, cfg.Host)
 
 	var err error
-	if s.cfg.TLS {
-		err = sendWithTLS(addr, auth, s.cfg.Host, s.cfg.From, to, []byte(msg))
+	if cfg.TLS {
+		err = sendWithTLS(addr, auth, cfg.Host, cfg.From, to, []byte(msg))
 	} else {
-		err = smtp.SendMail(addr, auth, s.cfg.From, []string{to}, []byte(msg))
+		err = smtp.SendMail(addr, auth, cfg.From, []string{to}, []byte(msg))
 	}
 	if err != nil {
 		log.Printf("[smtp] send to %s failed: %v", to, err)

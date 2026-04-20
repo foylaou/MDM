@@ -1,11 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useDialog } from "../components/DialogProvider";
 import {
   Plus, RefreshCw, Play, CheckCircle, Trash2, Download,
   ClipboardCheck, ChevronDown, ChevronRight, Search,
 } from "lucide-react";
+import type { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 import apiClient from "../lib/apiClient";
+import { DataGrid } from "../components/DataGrid";
 
 interface InventorySession {
   id: string;
@@ -161,6 +163,54 @@ export function Inventory() {
         i.asset_name.toLowerCase().includes(itemFilter.toLowerCase()))
     : items;
 
+  const expandedSessionStatus = sessions.find((s) => s.id === expandedSession)?.status;
+  const itemColumnDefs = useMemo<ColDef<InventoryItem>[]>(() => {
+    const defs: ColDef<InventoryItem>[] = [
+      { headerName: t("inventory.assetNumber"), field: "asset_number", width: 140, cellClass: "font-mono text-xs", valueFormatter: (p) => p.value || "-" },
+      { headerName: t("inventory.assetName"), field: "asset_name", minWidth: 180 },
+      {
+        headerName: t("inventory.result"),
+        field: "found",
+        width: 110,
+        cellRenderer: (p: ICellRendererParams<InventoryItem>) =>
+          p.value === null
+            ? <span className="badge badge-ghost badge-xs">{t("inventory.unchecked")}</span>
+            : p.value
+              ? <span className="badge badge-success badge-xs">{t("inventory.found")}</span>
+              : <span className="badge badge-error badge-xs">{t("inventory.notFound")}</span>,
+      },
+      { headerName: t("inventory.checker"), field: "checker_name", width: 120, cellClass: "text-xs", valueFormatter: (p) => p.value || "-" },
+      {
+        headerName: t("inventory.checkedAt"),
+        field: "checked_at",
+        width: 170,
+        cellClass: "text-xs opacity-70",
+        valueFormatter: (p) => p.value ? new Date(p.value as string).toLocaleString() : "-",
+      },
+    ];
+    if (expandedSessionStatus === "in_progress") {
+      defs.push({
+        headerName: t("common.actions"),
+        colId: "actions",
+        width: 170,
+        pinned: "right",
+        sortable: false,
+        filter: false,
+        cellRenderer: (p: ICellRendererParams<InventoryItem>) => (
+          <div className="flex gap-1 h-full items-center">
+            <button onClick={() => handleCheckItem(p.data!.id, true)} className="btn btn-success btn-xs" disabled={p.data!.found === true}>
+              {t("inventory.markFound")}
+            </button>
+            <button onClick={() => handleCheckItem(p.data!.id, false)} className="btn btn-error btn-xs" disabled={p.data!.found === false}>
+              {t("inventory.markMissing")}
+            </button>
+          </div>
+        ),
+      });
+    }
+    return defs;
+  }, [t, expandedSessionStatus]);
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -286,65 +336,15 @@ export function Inventory() {
                           />
                         </label>
                       </div>
-                      {itemsLoading ? (
-                        <div className="text-center py-4"><span className="loading loading-spinner loading-sm"></span></div>
-                      ) : (
-                        <div className="overflow-x-auto">
-                          <table className="table table-xs">
-                            <thead>
-                              <tr>
-                                <th>{t("inventory.assetNumber")}</th>
-                                <th>{t("inventory.assetName")}</th>
-                                <th>{t("inventory.result")}</th>
-                                <th>{t("inventory.checker")}</th>
-                                <th>{t("inventory.checkedAt")}</th>
-                                {s.status === "in_progress" && <th>{t("common.actions")}</th>}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {filteredItems.map((item) => (
-                                <tr key={item.id} className="hover">
-                                  <td className="font-mono text-xs">{item.asset_number || "-"}</td>
-                                  <td>{item.asset_name}</td>
-                                  <td>
-                                    {item.found === null ? (
-                                      <span className="badge badge-ghost badge-xs">{t("inventory.unchecked")}</span>
-                                    ) : item.found ? (
-                                      <span className="badge badge-success badge-xs">{t("inventory.found")}</span>
-                                    ) : (
-                                      <span className="badge badge-error badge-xs">{t("inventory.notFound")}</span>
-                                    )}
-                                  </td>
-                                  <td className="text-xs">{item.checker_name || "-"}</td>
-                                  <td className="text-xs opacity-70">
-                                    {item.checked_at ? new Date(item.checked_at).toLocaleString() : "-"}
-                                  </td>
-                                  {s.status === "in_progress" && (
-                                    <td>
-                                      <div className="flex gap-1">
-                                        <button
-                                          onClick={() => handleCheckItem(item.id, true)}
-                                          className="btn btn-success btn-xs"
-                                          disabled={item.found === true}
-                                        >
-                                          {t("inventory.markFound")}
-                                        </button>
-                                        <button
-                                          onClick={() => handleCheckItem(item.id, false)}
-                                          className="btn btn-error btn-xs"
-                                          disabled={item.found === false}
-                                        >
-                                          {t("inventory.markMissing")}
-                                        </button>
-                                      </div>
-                                    </td>
-                                  )}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
+                      <DataGrid<InventoryItem>
+                        rowData={filteredItems}
+                        columnDefs={itemColumnDefs}
+                        loading={itemsLoading}
+                        height={420}
+                        hideSidebar
+                        pagination={false}
+                        getRowId={(p) => p.data.id}
+                      />
                     </div>
                   )}
                 </div>

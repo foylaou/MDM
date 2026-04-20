@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,23 +17,27 @@ import (
 )
 
 type AssetController struct {
-	assetRepo   port.AssetRepository
-	auditRepo   port.AuditRepository
-	custodyRepo port.CustodyRepository
-	userRepo    port.UserRepository
-	auth        *middleware.AuthHelper
+	assetRepo    port.AssetRepository
+	auditRepo    port.AuditRepository
+	custodyRepo  port.CustodyRepository
+	userRepo     port.UserRepository
+	categoryRepo port.CategoryRepository
+	auth         *middleware.AuthHelper
 }
 
-func NewAssetController(assetRepo port.AssetRepository, auditRepo port.AuditRepository, custodyRepo port.CustodyRepository, userRepo port.UserRepository, auth *middleware.AuthHelper) *AssetController {
+func NewAssetController(assetRepo port.AssetRepository, auditRepo port.AuditRepository, custodyRepo port.CustodyRepository, userRepo port.UserRepository, categoryRepo port.CategoryRepository, auth *middleware.AuthHelper) *AssetController {
 	return &AssetController{
 		assetRepo: assetRepo, auditRepo: auditRepo,
-		custodyRepo: custodyRepo, userRepo: userRepo, auth: auth,
+		custodyRepo: custodyRepo, userRepo: userRepo,
+		categoryRepo: categoryRepo, auth: auth,
 	}
 }
 
 func (c *AssetController) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/assets", c.handleAssets)
 	mux.HandleFunc("/api/assets-export", c.handleExport)
+	mux.HandleFunc("/api/assets-template", c.handleTemplate)
+	mux.HandleFunc("/api/assets-import", c.handleImport)
 	mux.HandleFunc("/api/assets-lifecycle", c.handleLifecycle)
 	mux.HandleFunc("/api/assets-custody", c.handleCustody)
 	mux.HandleFunc("/api/assets-custody/", c.handleCustodyHistory)
@@ -483,6 +488,284 @@ func (c *AssetController) handleCustodyHistory(w http.ResponseWriter, r *http.Re
 		})
 	}
 	writeJSON(w, map[string]interface{}{"logs": rows})
+}
+
+// importHeaders defines the column order for the import template. The import
+// parser matches columns by header name (first row), so column order can vary
+// as long as the header cells match exactly.
+var importHeaders = []string{
+	"財產編號", "名稱", "規格", "數量", "單位", "單價", "取得日期",
+	"存放處所", "分類", "用途", "備註",
+}
+
+// handleTemplate returns a blank Excel template for bulk import.
+// @Summary 下載財產匯入 Excel 範本
+// @Tags Asset
+// @Produce application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+// @Security BearerAuth
+// @Success 200 {file} file "Excel 範本"
+// @Router /api/assets-template [get]
+func (c *AssetController) handleTemplate(w http.ResponseWriter, r *http.Request) {
+	if _, err := c.auth.RequireModule(r, "asset", "operator"); err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+
+	f := excelize.NewFile()
+	defer f.Close()
+
+	// Sheet 1: data
+	dataSheet := "財產清冊"
+	f.SetSheetName("Sheet1", dataSheet)
+	for col, h := range importHeaders {
+		cell, _ := excelize.CoordinatesToCellName(col+1, 1)
+		f.SetCellValue(dataSheet, cell, h)
+	}
+	headerStyle, _ := f.NewStyle(&excelize.Style{
+		Font: &excelize.Font{Bold: true, Color: "#FFFFFF"},
+		Fill: excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"#2563EB"}},
+	})
+	endCell, _ := excelize.CoordinatesToCellName(len(importHeaders), 1)
+	f.SetCellStyle(dataSheet, "A1", endCell, headerStyle)
+
+	// Example row to guide the user
+	example := []interface{}{
+		"A-2025-0001", "MacBook Air 15", "M3/16G/512G", 1, "台", 42900,
+		"2025-01-15", "3F 辦公室", "筆記型電腦", "行政使用", "",
+	}
+	for col, v := range example {
+		cell, _ := excelize.CoordinatesToCellName(col+1, 2)
+		f.SetCellValue(dataSheet, cell, v)
+	}
+	for col := range importHeaders {
+		name, _ := excelize.ColumnNumberToName(col + 1)
+		f.SetColWidth(dataSheet, name, name, 16)
+	}
+
+	// Sheet 2: instructions
+	instr := "說明"
+	f.NewSheet(instr)
+	instructions := [][]interface{}{
+		{"欄位", "必填", "說明"},
+		{"財產編號", "否", "留空將以系統預設值建立；若已存在則視為更新"},
+		{"名稱", "是", "財產名稱"},
+		{"規格", "否", "型號或規格說明"},
+		{"數量", "否", "整數，預設 1"},
+		{"單位", "否", "例：台、支、套"},
+		{"單價", "否", "數字，元"},
+		{"取得日期", "否", "格式 YYYY-MM-DD"},
+		{"存放處所", "否", "所在位置"},
+		{"分類", "否", "系統會以名稱對應分類；名稱需與「資產品分類」一致"},
+		{"用途", "否", "使用目的"},
+		{"備註", "否", "任意說明"},
+		{"", "", ""},
+		{"注意事項", "", ""},
+		{"", "", "保管人 / 目前持有人 / 狀態不可由匯入設定，需透過系統操作流程變更。"},
+		{"", "", "若提供「財產編號」且系統已存在相同編號，該列將以更新方式寫入。"},
+	}
+	for i, row := range instructions {
+		for j, v := range row {
+			cell, _ := excelize.CoordinatesToCellName(j+1, i+1)
+			f.SetCellValue(instr, cell, v)
+		}
+	}
+	f.SetColWidth(instr, "A", "A", 14)
+	f.SetColWidth(instr, "B", "B", 8)
+	f.SetColWidth(instr, "C", "C", 60)
+	tblEnd, _ := excelize.CoordinatesToCellName(3, 1)
+	f.SetCellStyle(instr, "A1", tblEnd, headerStyle)
+
+	f.SetActiveSheet(0)
+
+	filename := fmt.Sprintf("財產匯入範本_%s.xlsx", time.Now().Format("2006-01-02"))
+	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	if err := f.Write(w); err != nil {
+		log.Printf("[asset-template] write error: %v", err)
+	}
+}
+
+// handleImport parses an uploaded Excel file and creates/updates asset rows.
+// @Summary 匯入財產清冊 Excel
+// @Tags Asset
+// @Accept multipart/form-data
+// @Produce json
+// @Security BearerAuth
+// @Param file formData file true "Excel 檔案 (.xlsx)"
+// @Success 200 {object} map[string]interface{} "{created, updated, failed, errors}"
+// @Router /api/assets-import [post]
+func (c *AssetController) handleImport(w http.ResponseWriter, r *http.Request) {
+	claims, err := c.auth.RequireModule(r, "asset", "operator")
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	if !requireMethod(w, r, http.MethodPost) {
+		return
+	}
+
+	if err := r.ParseMultipartForm(16 << 20); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid multipart form")
+		return
+	}
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "file required")
+		return
+	}
+	defer file.Close()
+
+	f, err := excelize.OpenReader(file)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid Excel file")
+		return
+	}
+	defer f.Close()
+
+	sheet := f.GetSheetList()[0]
+	rows, err := f.GetRows(sheet)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "cannot read sheet: "+err.Error())
+		return
+	}
+	if len(rows) < 2 {
+		writeJSON(w, map[string]interface{}{
+			"created": 0, "updated": 0, "failed": 0, "errors": []string{},
+		})
+		return
+	}
+
+	// Build header → column index map.
+	header := rows[0]
+	colIdx := map[string]int{}
+	for i, h := range header {
+		colIdx[strings.TrimSpace(h)] = i
+	}
+	required := []string{"名稱"}
+	for _, req := range required {
+		if _, ok := colIdx[req]; !ok {
+			writeError(w, http.StatusBadRequest, "缺少必要欄位: "+req)
+			return
+		}
+	}
+
+	// Build category name → id lookup.
+	categories, _ := c.categoryRepo.List(r.Context())
+	catByName := map[string]string{}
+	for _, cat := range categories {
+		catByName[strings.TrimSpace(cat.Name)] = cat.ID
+	}
+
+	getCell := func(row []string, name string) string {
+		i, ok := colIdx[name]
+		if !ok || i >= len(row) {
+			return ""
+		}
+		return strings.TrimSpace(row[i])
+	}
+
+	var (
+		created, updated, failed int
+		errs                     []string
+	)
+
+	for i := 1; i < len(rows); i++ {
+		row := rows[i]
+		if len(row) == 0 {
+			continue
+		}
+		name := getCell(row, "名稱")
+		if name == "" {
+			// skip fully-empty rows silently; flag otherwise
+			nonEmpty := false
+			for _, cell := range row {
+				if strings.TrimSpace(cell) != "" {
+					nonEmpty = true
+					break
+				}
+			}
+			if nonEmpty {
+				failed++
+				errs = append(errs, fmt.Sprintf("第 %d 列：名稱為必填", i+1))
+			}
+			continue
+		}
+
+		qty := 1
+		if s := getCell(row, "數量"); s != "" {
+			if v, err := strconv.Atoi(s); err == nil {
+				qty = v
+			}
+		}
+		price := 0.0
+		if s := getCell(row, "單價"); s != "" {
+			if v, err := strconv.ParseFloat(s, 64); err == nil {
+				price = v
+			}
+		}
+		var acquired *time.Time
+		if s := getCell(row, "取得日期"); s != "" {
+			if t, err := time.Parse("2006-01-02", s); err == nil {
+				acquired = &t
+			} else if t, err := time.Parse("2006/1/2", s); err == nil {
+				acquired = &t
+			} else {
+				failed++
+				errs = append(errs, fmt.Sprintf("第 %d 列：取得日期格式錯誤 (%s)", i+1, s))
+				continue
+			}
+		}
+
+		var catID *string
+		if s := getCell(row, "分類"); s != "" {
+			if id, ok := catByName[s]; ok {
+				catID = &id
+			} else {
+				failed++
+				errs = append(errs, fmt.Sprintf("第 %d 列：找不到分類「%s」", i+1, s))
+				continue
+			}
+		}
+
+		assetNum := getCell(row, "財產編號")
+		asset := &domain.Asset{
+			AssetNumber:   assetNum,
+			Name:          name,
+			Spec:          getCell(row, "規格"),
+			Quantity:      qty,
+			Unit:          getCell(row, "單位"),
+			AcquiredDate:  acquired,
+			UnitPrice:     price,
+			Purpose:       getCell(row, "用途"),
+			Location:      getCell(row, "存放處所"),
+			AssetCategory: getCell(row, "分類"),
+			Notes:         getCell(row, "備註"),
+			CategoryID:    catID,
+		}
+
+		id, err := c.assetRepo.Create(r.Context(), asset)
+		if err != nil {
+			failed++
+			errs = append(errs, fmt.Sprintf("第 %d 列：建立失敗 (%s)", i+1, err.Error()))
+			continue
+		}
+		created++
+
+		c.auditRepo.Create(r.Context(), &domain.AuditLog{
+			UserID: claims.UserID, Username: claims.Username,
+			Action: "asset_import", Target: id,
+			Detail: fmt.Sprintf("imported: %s / %s", assetNum, name),
+			Module: "asset",
+			IPAddress: clientIP(r), UserAgent: r.UserAgent(),
+		})
+	}
+
+	writeJSON(w, map[string]interface{}{
+		"created": created, "updated": updated, "failed": failed, "errors": errs,
+	})
 }
 
 // handleExport exports the asset list as Excel.

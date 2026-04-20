@@ -81,15 +81,27 @@ func main() {
 	permissionRepo := postgres.NewPermissionRepo(pool)
 	notificationRepo := postgres.NewNotificationRepo(pool)
 	inventoryRepo := postgres.NewInventoryRepo(pool)
+	mailSettingsRepo := postgres.NewMailSettingsRepo(pool)
 
 	// Auth helper (module-level permission checks)
 	authHelper := middleware.NewAuthHelper(cfg.JWTSecret, permissionRepo)
 
-	// Notification service (email + audit trail)
-	var emailSender port.EmailSender
-	if smtpSender := smtpAdapter.NewSender(cfg.SMTP); smtpSender != nil {
-		emailSender = smtpSender
+	// Notification service (email + audit trail).
+	// The sender starts with env-based config and is hot-reloaded from DB
+	// both at boot (below) and whenever /api/settings/mail is updated.
+	smtpSender := smtpAdapter.NewSender(cfg.SMTP)
+	if ms, err := mailSettingsRepo.Get(context.Background()); err == nil && ms.SMTPEnabled {
+		smtpSender.SetConfig(config.SMTPConfig{
+			Host:     ms.SMTPHost,
+			Port:     ms.SMTPPort,
+			Username: ms.SMTPUsername,
+			Password: ms.SMTPPassword,
+			From:     ms.SMTPFrom,
+			FromName: ms.SMTPFromName,
+			TLS:      ms.SMTPTLS,
+		})
 	}
+	var emailSender port.EmailSender = smtpSender
 	notifySvc := service.NewNotifyService(emailSender, notificationRepo, userRepo)
 
 	// Event broker
@@ -220,7 +232,7 @@ func main() {
 		controller.NewSystemController(pool, cfg),
 		controller.NewAuthController(userRepo, authHelper, cfg.JWTSecret),
 		controller.NewDeviceController(deviceRepo, mdmClient, authHelper),
-		controller.NewAssetController(assetRepo, auditRepo, custodyRepo, userRepo, authHelper),
+		controller.NewAssetController(assetRepo, auditRepo, custodyRepo, userRepo, categoryRepo, authHelper),
 		controller.NewInventoryController(inventoryRepo, auditRepo, authHelper),
 		controller.NewRentalController(rentalRepo, assetRepo, userRepo, notifySvc, authHelper),
 		controller.NewAppController(appRepo, deviceRepo, mdmClient, vppClient, auditRepo, authHelper),
@@ -228,6 +240,7 @@ func main() {
 		controller.NewCategoryController(categoryRepo, authHelper),
 		controller.NewProfileController(profileRepo, authHelper),
 		controller.NewNotificationController(notificationRepo, authHelper),
+		controller.NewSettingsController(mailSettingsRepo, smtpSender, authHelper),
 	)
 
 	// CORS
@@ -264,7 +277,7 @@ func main() {
 
 func runMigrations(pool *pgxpool.Pool) {
 	ctx := context.Background()
-	for i, sql := range []string{db.MigrationSQL, db.Migration002SQL, db.Migration003SQL, db.Migration004SQL, db.Migration005SQL, db.Migration006SQL, db.Migration007SQL, db.Migration008SQL, db.Migration009SQL, db.Migration010SQL, db.Migration011SQL, db.Migration012SQL, db.Migration013SQL, db.Migration014SQL, db.Migration015SQL, db.Migration016SQL} {
+	for i, sql := range []string{db.MigrationSQL, db.Migration002SQL, db.Migration003SQL, db.Migration004SQL, db.Migration005SQL, db.Migration006SQL, db.Migration007SQL, db.Migration008SQL, db.Migration009SQL, db.Migration010SQL, db.Migration011SQL, db.Migration012SQL, db.Migration013SQL, db.Migration014SQL, db.Migration015SQL, db.Migration016SQL, db.Migration017SQL} {
 		if _, err := pool.Exec(ctx, sql); err != nil {
 			log.Printf("migration %d: %v (may already be applied)", i+1, err)
 		} else {

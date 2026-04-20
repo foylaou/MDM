@@ -8,7 +8,7 @@ import { ChangePassword } from "./ChangePassword";
 import { ViewerOnboarding } from "./ViewerOnboarding";
 import {
   LayoutDashboard, Tablet, Terminal, Radio, Users, ClipboardList, FileText, Package, Repeat, FolderTree,
-  LogOut, Menu, Moon, Sun, Globe, Bell, Wifi, WifiOff, Lock, Briefcase, BellRing, ClipboardCheck,
+  LogOut, Menu, Moon, Sun, Globe, Bell, Wifi, WifiOff, Lock, Briefcase, BellRing, ClipboardCheck, Settings,
 } from "lucide-react";
 import { useState, useEffect, type ReactNode } from "react";
 
@@ -69,6 +69,7 @@ const navGroups: NavGroup[] = [
     items: [
       { path: "/admin/users", labelKey: "nav.users", icon: <Users size={20} />, sysAdmin: true },
       { path: "/admin/audit", labelKey: "nav.audit", icon: <ClipboardList size={20} />, sysAdmin: true },
+      { path: "/admin/settings", labelKey: "nav.settings", icon: <Settings size={20} />, sysAdmin: true },
     ],
   },
 ];

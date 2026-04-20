@@ -7,8 +7,9 @@ import { useDialog } from "../components/DialogProvider";
 import {
   Check, X, RotateCcw, Play, UserPlus, Clock,
   CheckCircle, AlertCircle, ArrowRight, FileDown, Archive,
-  ChevronDown, ChevronRight,
 } from "lucide-react";
+import type { ColDef, ICellRendererParams } from "ag-grid-enterprise";
+import { DataGrid } from "../components/DataGrid";
 
 interface ReturnChecklist {
   deviceReceived?: boolean;
@@ -136,8 +137,6 @@ export function Rentals() {
 
   // Selection — by rental_number
   const [selectedNumbers, setSelectedNumbers] = useState<Set<number>>(new Set());
-  // Expanded groups
-  const [expandedNumbers, setExpandedNumbers] = useState<Set<number>>(new Set());
 
   // Create form
   const [selectedDevices, setSelectedDevices] = useState<string[]>([]);
@@ -276,14 +275,6 @@ export function Rentals() {
     }
   };
 
-  const toggleExpand = (num: number) => {
-    setExpandedNumbers((prev) => {
-      const next = new Set(prev);
-      if (next.has(num)) next.delete(num); else next.add(num);
-      return next;
-    });
-  };
-
   const selectedGroups = useMemo(
     () => groups.filter((g) => selectedNumbers.has(g.rental_number)),
     [groups, selectedNumbers],
@@ -296,6 +287,146 @@ export function Rentals() {
     const ids = target.flatMap((g) => g.rentals.map((r) => r.id));
     await downloadExportExcel(ids);
   };
+
+  const columnDefs = useMemo<ColDef<RentalGroup>[]>(() => {
+    const defs: ColDef<RentalGroup>[] = [];
+    if (canExport) {
+      defs.push({
+        headerName: "",
+        colId: "select",
+        width: 44,
+        pinned: "left",
+        sortable: false,
+        filter: false,
+        resizable: false,
+        headerComponent: () => (
+          <input
+            type="checkbox"
+            className="checkbox checkbox-xs"
+            checked={groups.length > 0 && selectedNumbers.size === groups.length}
+            onChange={toggleSelectAll}
+          />
+        ),
+        cellRenderer: (p: ICellRendererParams<RentalGroup>) => (
+          <input
+            type="checkbox"
+            className="checkbox checkbox-xs"
+            checked={selectedNumbers.has(p.data!.rental_number)}
+            onChange={() => toggleSelect(p.data!.rental_number)}
+          />
+        ),
+      });
+    }
+    defs.push({
+      headerName: "",
+      colId: "expand",
+      width: 44,
+      sortable: false,
+      filter: false,
+      resizable: false,
+      cellRenderer: "agGroupCellRenderer",
+      cellRendererParams: { suppressCount: true },
+      cellRendererSelector: (p) => p.data!.rentals.length > 1
+        ? { component: "agGroupCellRenderer", params: { suppressCount: true } }
+        : undefined,
+    });
+    defs.push({
+      headerName: "單號",
+      field: "rental_number",
+      width: 110,
+      cellRenderer: (p: ICellRendererParams<RentalGroup>) => (
+        <span className="font-mono text-sm font-medium">
+          {p.value}
+          {p.data!.is_archived && <span className="badge badge-xs badge-ghost ml-1">存查</span>}
+        </span>
+      ),
+    });
+    defs.push({
+      headerName: "裝置",
+      colId: "device",
+      minWidth: 200,
+      valueGetter: (p) => p.data?.rentals[0].device_name || p.data?.rentals[0].device_serial || "",
+      cellRenderer: (p: ICellRendererParams<RentalGroup>) => {
+        const first = p.data!.rentals[0];
+        return p.data!.rentals.length > 1 ? (
+          <div>
+            <span className="font-medium">{first.device_name || first.device_serial}</span>
+            <span className="badge badge-sm badge-outline ml-1">共 {p.data!.rentals.length} 台</span>
+          </div>
+        ) : (
+          <div>
+            <div className="font-medium">{first.device_name || first.device_serial}</div>
+            <div className="text-xs opacity-50 font-mono">{first.device_serial}</div>
+          </div>
+        );
+      },
+    });
+    defs.push({ headerName: "借用人", field: "borrower_name", width: 120, cellClass: "font-medium" });
+    defs.push({ headerName: "保管人", field: "custodian_name", width: 120, cellClass: "text-sm opacity-70", valueFormatter: (p) => p.value || "-" });
+    defs.push({ headerName: "用途", field: "purpose", minWidth: 140, cellClass: "text-sm", valueFormatter: (p) => p.value || "-" });
+    defs.push({
+      headerName: "狀態",
+      field: "status",
+      width: 120,
+      cellRenderer: (p: ICellRendererParams<RentalGroup>) => {
+        const sc = statusConfig[p.value as string] || statusConfig.pending;
+        return <span className={`badge badge-sm gap-1 ${sc.badge}`}>{sc.icon} {sc.label}</span>;
+      },
+    });
+    defs.push({
+      headerName: "借出日期",
+      field: "borrow_date",
+      width: 120,
+      cellClass: "text-sm opacity-70",
+      valueFormatter: (p) => p.value ? new Date(p.value as string).toLocaleDateString() : "-",
+    });
+    defs.push({ headerName: "預計歸還", field: "expected_return", width: 120, cellClass: "text-sm opacity-70", valueFormatter: (p) => p.value || "-" });
+    defs.push({ headerName: "核准人", field: "approver_name", width: 120, cellClass: "text-sm", valueFormatter: (p) => p.value || "-" });
+    defs.push({
+      headerName: "操作",
+      colId: "actions",
+      width: 180,
+      pinned: "right",
+      sortable: false,
+      filter: false,
+      cellRenderer: (p: ICellRendererParams<RentalGroup>) => {
+        const g = p.data!;
+        const firstRentalId = g.rentals[0].id;
+        return (
+          <div className="flex gap-1 h-full items-center">
+            {g.status === "pending" && canApprove(g) && (
+              <>
+                <button onClick={() => doAction(firstRentalId, "approve")} className="btn btn-success btn-xs gap-1"><CheckCircle size={12} /> 核准</button>
+                <button onClick={() => doAction(firstRentalId, "reject")} className="btn btn-error btn-xs gap-1"><AlertCircle size={12} /> 拒絕</button>
+              </>
+            )}
+            {g.status === "approved" && isAdmin && (
+              <button onClick={() => doAction(firstRentalId, "activate")} className="btn btn-primary btn-xs gap-1"><Play size={12} /> 借出</button>
+            )}
+            {g.status === "active" && canApprove(g) && (
+              <button onClick={() => doAction(firstRentalId, "return")} className="btn btn-warning btn-xs gap-1"><RotateCcw size={12} /> 歸還</button>
+            )}
+          </div>
+        );
+      },
+    });
+    return defs;
+  }, [canExport, selectedNumbers, groups.length, isAdmin, user]);
+
+  const detailCellRendererParams = useMemo(() => ({
+    detailGridOptions: {
+      columnDefs: [
+        { headerName: "#", valueGetter: (p: any) => (p.node?.rowIndex ?? 0) + 1, width: 60 },
+        { headerName: "裝置名稱", field: "device_name", flex: 1, valueFormatter: (p: any) => p.value || p.data?.device_serial || "-" },
+        { headerName: "序號", field: "device_serial", flex: 1, cellClass: "font-mono text-xs" },
+      ] as ColDef<Rental>[],
+      defaultColDef: { sortable: false, filter: false, resizable: true },
+      domLayout: "autoHeight" as const,
+      headerHeight: 32,
+      rowHeight: 32,
+    },
+    getDetailRowData: (p: any) => { p.successCallback((p.data as RentalGroup).rentals); },
+  }), []);
 
   // Export + archive
   const handleExportAndArchive = async () => {
@@ -425,129 +556,19 @@ export function Rentals() {
         </div>
       )}
 
-      {/* Table */}
-      <div className="card bg-base-100 shadow" data-tour="rental-table">
-        <div className="overflow-x-auto">
-          <table className="table table-sm">
-            <thead>
-              <tr>
-                {canExport && (
-                  <th>
-                    <input
-                      type="checkbox"
-                      className="checkbox checkbox-xs"
-                      checked={groups.length > 0 && selectedNumbers.size === groups.length}
-                      onChange={toggleSelectAll}
-                    />
-                  </th>
-                )}
-                <th></th>
-                <th>單號</th>
-                <th>裝置</th>
-                <th>借用人</th>
-                <th>保管人</th>
-                <th>用途</th>
-                <th>狀態</th>
-                <th>借出日期</th>
-                <th>預計歸還</th>
-                <th>核准人</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={canExport ? 12 : 11} className="text-center py-8"><span className="loading loading-spinner loading-md"></span></td></tr>
-              ) : groups.length === 0 ? (
-                <tr><td colSpan={canExport ? 12 : 11} className="text-center py-8 text-base-content/50">尚無租借記錄</td></tr>
-              ) : groups.map((g) => {
-                const sc = statusConfig[g.status] || statusConfig.pending;
-                const isExpanded = expandedNumbers.has(g.rental_number);
-                const hasMultiple = g.rentals.length > 1;
-                const firstRentalId = g.rentals[0].id;
-                return (
-                  <>{/* Group header row */}
-                  <tr key={g.rental_number} className={`hover ${g.is_archived ? "opacity-50" : ""}`}>
-                    {canExport && (
-                      <td>
-                        <input
-                          type="checkbox"
-                          className="checkbox checkbox-xs"
-                          checked={selectedNumbers.has(g.rental_number)}
-                          onChange={() => toggleSelect(g.rental_number)}
-                        />
-                      </td>
-                    )}
-                    <td className="w-6">
-                      {hasMultiple && (
-                        <button onClick={() => toggleExpand(g.rental_number)} className="btn btn-ghost btn-xs btn-circle">
-                          {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                        </button>
-                      )}
-                    </td>
-                    <td className="font-mono text-sm font-medium">
-                      {g.rental_number}
-                      {g.is_archived && <span className="badge badge-xs badge-ghost ml-1">存查</span>}
-                    </td>
-                    <td>
-                      {hasMultiple ? (
-                        <div>
-                          <span className="font-medium">{g.rentals[0].device_name || g.rentals[0].device_serial}</span>
-                          <span className="badge badge-sm badge-outline ml-1">共 {g.rentals.length} 台</span>
-                        </div>
-                      ) : (
-                        <div>
-                          <div className="font-medium">{g.rentals[0].device_name || g.rentals[0].device_serial}</div>
-                          <div className="text-xs opacity-50 font-mono">{g.rentals[0].device_serial}</div>
-                        </div>
-                      )}
-                    </td>
-                    <td className="font-medium">{g.borrower_name}</td>
-                    <td className="text-sm opacity-70">{g.custodian_name || <span className="opacity-30">-</span>}</td>
-                    <td className="text-sm">{g.purpose || "-"}</td>
-                    <td>
-                      <span className={`badge badge-sm gap-1 ${sc.badge}`}>
-                        {sc.icon} {sc.label}
-                      </span>
-                    </td>
-                    <td className="text-sm opacity-70">{new Date(g.borrow_date).toLocaleDateString()}</td>
-                    <td className="text-sm opacity-70">{g.expected_return || "-"}</td>
-                    <td className="text-sm">{g.approver_name || "-"}</td>
-                    <td>
-                      <div className="flex gap-1">
-                        {g.status === "pending" && canApprove(g) && (
-                          <>
-                            <button onClick={() => doAction(firstRentalId, "approve")} className="btn btn-success btn-xs gap-1"><CheckCircle size={12} /> 核准</button>
-                            <button onClick={() => doAction(firstRentalId, "reject")} className="btn btn-error btn-xs gap-1"><AlertCircle size={12} /> 拒絕</button>
-                          </>
-                        )}
-                        {g.status === "approved" && isAdmin && (
-                          <button onClick={() => doAction(firstRentalId, "activate")} className="btn btn-primary btn-xs gap-1"><Play size={12} /> 借出</button>
-                        )}
-                        {g.status === "active" && canApprove(g) && (
-                          <button onClick={() => doAction(firstRentalId, "return")} className="btn btn-warning btn-xs gap-1"><RotateCcw size={12} /> 歸還</button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                  {/* Expanded device rows */}
-                  {isExpanded && g.rentals.map((r, idx) => (
-                    <tr key={r.id} className={`bg-base-200/50 ${g.is_archived ? "opacity-50" : ""}`}>
-                      {canExport && <td></td>}
-                      <td></td>
-                      <td className="text-xs opacity-50 text-right">{idx + 1}</td>
-                      <td>
-                        <div className="font-medium text-sm">{r.device_name || r.device_serial}</div>
-                        <div className="text-xs opacity-50 font-mono">{r.device_serial}</div>
-                      </td>
-                      <td colSpan={8}></td>
-                    </tr>
-                  ))}
-                  </>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+      {/* Grid */}
+      <div className="card bg-base-100 shadow p-2" data-tour="rental-table">
+        <DataGrid<RentalGroup>
+          rowData={groups}
+          columnDefs={columnDefs}
+          loading={loading}
+          getRowId={(p) => String(p.data.rental_number)}
+          overlayNoRowsTemplate={`<span class="opacity-50">尚無租借記錄</span>`}
+          masterDetail
+          isRowMaster={(data) => data.rentals.length > 1}
+          detailCellRendererParams={detailCellRendererParams}
+          getRowClass={(p) => p.data?.is_archived ? "opacity-50" : ""}
+        />
       </div>
       {/* Return checklist dialog */}
       <dialog className={`modal ${returnRentalId ? "modal-open" : ""}`}>

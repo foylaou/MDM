@@ -280,3 +280,29 @@ type DeviceListItem struct {
 	CustodianID      *string
 	AssetStatus      string
 }
+
+// MailSettings is the single-row configuration for outgoing + incoming mail.
+type MailSettings struct {
+	// Outgoing (SMTP)
+	SMTPEnabled  bool
+	SMTPHost     string
+	SMTPPort     string
+	SMTPUsername string
+	SMTPPassword string
+	SMTPFrom     string
+	SMTPFromName string
+	SMTPTLS      bool
+
+	// Incoming (IMAP / POP3)
+	IncomingEnabled  bool
+	IncomingProtocol string // "imap" | "pop3"
+	IncomingHost     string
+	IncomingPort     string
+	IncomingUsername string
+	IncomingPassword string
+	IncomingTLS      bool
+	IncomingMailbox  string
+
+	UpdatedAt time.Time
+	UpdatedBy *string
+}

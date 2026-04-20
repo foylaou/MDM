@@ -165,6 +165,12 @@ type EmailSender interface {
 	Send(ctx context.Context, to string, subject string, htmlBody string) error
 }
 
+// MailSettingsRepository persists the mail server configuration (single row).
+type MailSettingsRepository interface {
+	Get(ctx context.Context) (*domain.MailSettings, error)
+	Upsert(ctx context.Context, settings *domain.MailSettings, updatedBy string) error
+}
+
 // EventBroker fans out MDM events to subscribers.
 type EventBroker interface {
 	Publish(event *domain.MDMEvent)

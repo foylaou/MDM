@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuthStore } from "../stores/authStore";
 import { useEventStore } from "../stores/eventStore";
 import { useTranslation } from "react-i18next";
 import { Search, RefreshCw, Download, ChevronDown, ChevronRight, Clock, CheckCircle, AlertCircle, Activity } from "lucide-react";
-import { Pagination } from "../components/Pagination";
+import type { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 import { ResponseViewer } from "../components/ResponseViewer";
+import { DataGrid } from "../components/DataGrid";
 import type { AuditLog } from "../gen/mdm/v1/audit_pb";
 
 const PAGE_SIZE = 20;
@@ -32,8 +33,6 @@ export function Audit() {
   const [loading, setLoading] = useState(true);
   const [filterAction, setFilterAction] = useState("");
   const [filterModule, setFilterModule] = useState("");
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
   const [expandedCmds, setExpandedCmds] = useState<Set<string>>(new Set());
 
   const loadLogs = async () => {
@@ -42,13 +41,11 @@ export function Audit() {
     try {
       const resp = await clients.audit.listAuditLogs({ action: filterAction, module: filterModule, pageSize: PAGE_SIZE });
       setLogs(resp.logs);
-      setTotal(resp.logs.length < PAGE_SIZE ? resp.logs.length : resp.logs.length * 3); // estimate
     } catch (err) { console.error("Failed to load audit logs:", err); }
     finally { setLoading(false); }
   };
 
   useEffect(() => { loadLogs(); }, [clients, filterAction, filterModule]);
-  useEffect(() => { setPage(1); }, [filterAction, filterModule]);
 
   const exportCSV = () => {
     if (logs.length === 0) return;
@@ -101,6 +98,59 @@ export function Audit() {
       default: return "badge-warning";
     }
   };
+
+  const columnDefs = useMemo<ColDef<AuditLog>[]>(() => [
+    {
+      headerName: t("audit.time"),
+      field: "timestamp" as any,
+      width: 180,
+      cellClass: "text-sm opacity-70",
+      valueGetter: (p) => p.data?.timestamp ? p.data.timestamp.toDate().getTime() : 0,
+      valueFormatter: (p) => p.value ? new Date(p.value as number).toLocaleString() : "-",
+      sort: "desc",
+    },
+    { headerName: t("audit.user"), field: "username", width: 140, cellClass: "font-medium" },
+    {
+      headerName: t("audit.module"),
+      field: "module",
+      width: 110,
+      cellRenderer: (p: ICellRendererParams<AuditLog>) => {
+        const mod = (p.value as string) || "system";
+        const modBadge = MODULE_BADGE[mod] || "badge-ghost";
+        return <span className={`badge badge-sm ${modBadge}`}>{mod}</span>;
+      },
+    },
+    {
+      headerName: t("audit.action"),
+      field: "action",
+      width: 160,
+      cellRenderer: (p: ICellRendererParams<AuditLog>) =>
+        <span className="badge badge-info badge-sm">{p.value}</span>,
+    },
+    {
+      headerName: t("audit.target"),
+      field: "target",
+      minWidth: 200,
+      cellClass: "font-mono text-xs opacity-70",
+      valueFormatter: (p) => p.value || "-",
+      tooltipField: "target",
+    },
+    {
+      headerName: "IP",
+      field: "ipAddress",
+      width: 140,
+      cellClass: "font-mono text-xs opacity-50",
+      valueFormatter: (p) => p.value || "-",
+    },
+    {
+      headerName: t("audit.detail"),
+      field: "detail",
+      minWidth: 240,
+      cellClass: "text-sm opacity-70",
+      valueFormatter: (p) => p.value || "-",
+      tooltipField: "detail",
+    },
+  ], [t]);
 
   return (
     <div className="space-y-4">
@@ -199,46 +249,14 @@ export function Audit() {
         </div>
       )}
 
-      <div className="card bg-base-100 shadow">
-        <div className="overflow-x-auto">
-          <table className="table table-sm">
-            <thead>
-              <tr>
-                <th>{t("audit.time")}</th>
-                <th>{t("audit.user")}</th>
-                <th>{t("audit.module")}</th>
-                <th>{t("audit.action")}</th>
-                <th>{t("audit.target")}</th>
-                <th>IP</th>
-                <th>{t("audit.detail")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={7} className="text-center py-8"><span className="loading loading-spinner loading-md"></span></td></tr>
-              ) : logs.length === 0 ? (
-                <tr><td colSpan={7} className="text-center py-8 text-base-content/50">{t("audit.noLogs")}</td></tr>
-              ) : logs.map((log) => {
-                const mod = log.module || "system";
-                const modBadge = MODULE_BADGE[mod] || "badge-ghost";
-                return (
-                  <tr key={log.id} className="hover">
-                    <td className="text-sm opacity-70 whitespace-nowrap">{log.timestamp ? new Date(log.timestamp.toDate()).toLocaleString() : "-"}</td>
-                    <td className="font-medium">{log.username}</td>
-                    <td><span className={`badge badge-sm ${modBadge}`}>{mod}</span></td>
-                    <td><span className="badge badge-info badge-sm">{log.action}</span></td>
-                    <td className="font-mono text-xs opacity-70 max-w-xs truncate">{log.target || "-"}</td>
-                    <td className="font-mono text-xs opacity-50">{log.ipAddress || "-"}</td>
-                    <td className="text-sm opacity-70 max-w-xs truncate">{log.detail || "-"}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <div className="px-4 pb-4">
-          <Pagination page={page} pageSize={PAGE_SIZE} total={total} onChange={setPage} />
-        </div>
+      <div className="card bg-base-100 shadow p-2">
+        <DataGrid<AuditLog>
+          rowData={logs}
+          columnDefs={columnDefs}
+          loading={loading}
+          getRowId={(p) => p.data.id}
+          overlayNoRowsTemplate={`<span class="opacity-50">${t("audit.noLogs")}</span>`}
+        />
       </div>
     </div>
   );

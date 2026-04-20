@@ -1,11 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuthStore } from "../stores/authStore";
-import { useDeviceStore } from "../stores/deviceStore";
+import { useDeviceStore, type DeviceRow } from "../stores/deviceStore";
 import { useTranslation } from "react-i18next";
 import { useDialog } from "../components/DialogProvider";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, RefreshCw, Send, Info, X, Filter, Columns, Download } from "lucide-react";
+import { Search, RefreshCw, Send, Info, X, Filter, Download } from "lucide-react";
+import type { ColDef, ICellRendererParams, RowSelectionOptions } from "ag-grid-enterprise";
 import apiClient from "../lib/apiClient";
+import { DataGrid } from "../components/DataGrid";
 
 const ASSET_STATUS_CONFIG: Record<string, { label: string; badge: string }> = {
   available:    { label: "可用",   badge: "badge-success" },
@@ -17,36 +19,6 @@ const ASSET_STATUS_CONFIG: Record<string, { label: string; badge: string }> = {
   transferred:  { label: "移撥",   badge: "badge-ghost" },
 };
 
-interface ColumnDef {
-  key: string;
-  label: string;
-  defaultVisible: boolean;
-}
-
-const ALL_COLUMNS: ColumnDef[] = [
-  { key: "device_name",       label: "裝置名稱",   defaultVisible: true },
-  { key: "serial_number",     label: "序號",       defaultVisible: true },
-  { key: "category_name",     label: "分類",       defaultVisible: true },
-  { key: "custodian_name",    label: "保管人",     defaultVisible: true },
-  { key: "asset_status",      label: "裝置狀態",   defaultVisible: true },
-  { key: "model",             label: "型號",       defaultVisible: true },
-  { key: "os_version",        label: "系統版本",   defaultVisible: true },
-  { key: "last_seen",         label: "最後上線",   defaultVisible: true },
-  { key: "enrollment_status", label: "註冊狀態",   defaultVisible: true },
-];
-
-function loadVisibleColumns(): Set<string> {
-  try {
-    const saved = localStorage.getItem("mdm_device_columns");
-    if (saved) return new Set(JSON.parse(saved));
-  } catch { /* ignore */ }
-  return new Set(ALL_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.key));
-}
-
-function saveVisibleColumns(cols: Set<string>) {
-  localStorage.setItem("mdm_device_columns", JSON.stringify([...cols]));
-}
-
 interface CategoryOption { id: string; name: string; level: number; parent_id: string | null; }
 interface UserOption { id: string; username: string; display_name: string; }
 
@@ -57,27 +29,13 @@ export function Devices() {
   const {
     devices, total, loading, filters,
     setFilter, clearFilters, loadDevices,
-    selected, toggleSelect, selectAll,
+    selected, setSelected,
   } = useDeviceStore();
   const navigate = useNavigate();
   const [syncing, setSyncing] = useState(false);
   const [syncingInfo, setSyncingInfo] = useState(false);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
-  const [visibleCols, setVisibleCols] = useState<Set<string>>(loadVisibleColumns);
-  const [showColPicker, setShowColPicker] = useState(false);
-
-  const toggleColumn = (key: string) => {
-    setVisibleCols((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
-      saveVisibleColumns(next);
-      return next;
-    });
-  };
-
-  const isColVisible = (key: string) => visibleCols.has(key);
-  const visibleCount = ALL_COLUMNS.filter((c) => visibleCols.has(c.key)).length + 1; // +1 for checkbox column
 
   // Load filter options
   useEffect(() => {
@@ -118,6 +76,64 @@ export function Devices() {
 
   const hasFilters = filters.categoryId || filters.custodianId;
 
+  const rowSelection = useMemo<RowSelectionOptions<DeviceRow>>(() => ({
+    mode: "multiRow",
+    checkboxes: true,
+    headerCheckbox: true,
+    enableClickSelection: false,
+  }), []);
+
+  const columnDefs = useMemo<ColDef<DeviceRow>[]>(() => [
+    {
+      headerName: t("devices.name"),
+      field: "device_name",
+      minWidth: 160,
+      cellRenderer: (p: ICellRendererParams<DeviceRow>) =>
+        <div className="font-medium text-primary">{p.value || "-"}</div>,
+    },
+    { headerName: t("devices.serial"), field: "serial_number", width: 160, cellClass: "font-mono text-xs" },
+    {
+      headerName: "分類",
+      field: "category_name",
+      width: 140,
+      cellRenderer: (p: ICellRendererParams<DeviceRow>) =>
+        p.value
+          ? <span className="badge badge-ghost badge-sm">{p.value}</span>
+          : <span className="opacity-30">-</span>,
+    },
+    {
+      headerName: "保管人",
+      field: "custodian_name",
+      width: 140,
+      valueFormatter: (p) => p.value || "-",
+    },
+    {
+      headerName: "裝置狀態",
+      field: "asset_status",
+      width: 110,
+      cellRenderer: (p: ICellRendererParams<DeviceRow>) => {
+        const st = ASSET_STATUS_CONFIG[p.value as string] || ASSET_STATUS_CONFIG.available;
+        return <span className={`badge badge-sm ${st.badge}`}>{st.label}</span>;
+      },
+    },
+    { headerName: t("devices.model"), field: "model", width: 140, cellClass: "text-sm opacity-70", valueFormatter: (p) => p.value || "-" },
+    { headerName: t("devices.os"), field: "os_version", width: 140, cellClass: "text-sm", valueFormatter: (p) => p.value || "-" },
+    {
+      headerName: t("devices.lastSeen"),
+      field: "last_seen",
+      width: 180,
+      cellClass: "text-sm opacity-70",
+      valueFormatter: (p) => p.value ? new Date(p.value as string).toLocaleString() : "-",
+    },
+    {
+      headerName: t("common.status"),
+      field: "enrollment_status",
+      width: 120,
+      cellRenderer: (p: ICellRendererParams<DeviceRow>) =>
+        <span className={`badge badge-sm ${p.value === "enrolled" ? "badge-success" : "badge-ghost"}`}>{p.value}</span>,
+    },
+  ], [t]);
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -148,26 +164,6 @@ export function Devices() {
           <button onClick={() => window.open("/api/assets-export", "_blank")} className="btn btn-outline btn-sm gap-1">
             <Download size={14} />Excel
           </button>
-          <div className="dropdown dropdown-end">
-            <button tabIndex={0} onClick={() => setShowColPicker(!showColPicker)} className="btn btn-ghost btn-sm gap-1">
-              <Columns size={14} /> 欄位
-            </button>
-            {showColPicker && (
-              <ul tabIndex={0} className="dropdown-content menu bg-base-100 rounded-box shadow-lg z-20 w-52 p-2"
-                onMouseLeave={() => setShowColPicker(false)}>
-                {ALL_COLUMNS.map((col) => (
-                  <li key={col.key}>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" className="checkbox checkbox-sm"
-                        checked={visibleCols.has(col.key)}
-                        onChange={() => toggleColumn(col.key)} />
-                      <span className="text-sm">{col.label}</span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
         </div>
       </div>
 
@@ -211,73 +207,23 @@ export function Devices() {
         </div>
       )}
 
-      {/* Table */}
-      <div className="card bg-base-100 shadow" data-tour="device-table">
-        <div className="overflow-x-auto">
-          <table className="table table-sm">
-            <thead>
-              <tr>
-                <th>
-                  <label>
-                    <input type="checkbox" className="checkbox checkbox-sm"
-                      checked={selected.size === devices.length && devices.length > 0} onChange={selectAll} />
-                  </label>
-                </th>
-                {isColVisible("device_name") && <th>{t("devices.name")}</th>}
-                {isColVisible("serial_number") && <th>{t("devices.serial")}</th>}
-                {isColVisible("category_name") && <th>分類</th>}
-                {isColVisible("custodian_name") && <th>保管人</th>}
-                {isColVisible("asset_status") && <th>裝置狀態</th>}
-                {isColVisible("model") && <th>{t("devices.model")}</th>}
-                {isColVisible("os_version") && <th>{t("devices.os")}</th>}
-                {isColVisible("last_seen") && <th>{t("devices.lastSeen")}</th>}
-                {isColVisible("enrollment_status") && <th>{t("common.status")}</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={visibleCount} className="text-center py-8"><span className="loading loading-spinner loading-md"></span></td></tr>
-              ) : devices.length === 0 ? (
-                <tr><td colSpan={visibleCount} className="text-center py-8 text-base-content/50">{t("devices.noDevices")}</td></tr>
-              ) : devices.map((d) => {
-                const st = ASSET_STATUS_CONFIG[d.asset_status] || ASSET_STATUS_CONFIG.available;
-                return (
-                  <tr key={d.udid} className="hover cursor-pointer" onClick={() => navigate(`/mdm/devices/${d.udid}`)}>
-                    <th onClick={(e) => e.stopPropagation()}>
-                      <label>
-                        <input type="checkbox" className="checkbox checkbox-sm"
-                          checked={selected.has(d.udid)} onChange={() => toggleSelect(d.udid)} />
-                      </label>
-                    </th>
-                    {isColVisible("device_name") && <td><div className="font-medium text-primary">{d.device_name || "-"}</div></td>}
-                    {isColVisible("serial_number") && <td className="font-mono text-xs">{d.serial_number}</td>}
-                    {isColVisible("category_name") && (
-                      <td className="text-sm">
-                        {d.category_name ? <span className="badge badge-ghost badge-sm">{d.category_name}</span> : <span className="opacity-30">-</span>}
-                      </td>
-                    )}
-                    {isColVisible("custodian_name") && <td className="text-sm">{d.custodian_name || <span className="opacity-30">-</span>}</td>}
-                    {isColVisible("asset_status") && (
-                      <td>
-                        <span className={`badge badge-sm ${st.badge}`}>{st.label}</span>
-                      </td>
-                    )}
-                    {isColVisible("model") && <td className="text-sm opacity-70">{d.model || "-"}</td>}
-                    {isColVisible("os_version") && <td className="text-sm">{d.os_version || "-"}</td>}
-                    {isColVisible("last_seen") && <td className="text-sm opacity-70">{d.last_seen ? new Date(d.last_seen).toLocaleString() : "-"}</td>}
-                    {isColVisible("enrollment_status") && (
-                      <td>
-                        <span className={`badge badge-sm ${d.enrollment_status === "enrolled" ? "badge-success" : "badge-ghost"}`}>
-                          {d.enrollment_status}
-                        </span>
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+      {/* Grid */}
+      <div className="card bg-base-100 shadow p-2" data-tour="device-table">
+        <DataGrid<DeviceRow>
+          rowData={devices}
+          columnDefs={columnDefs}
+          loading={loading}
+          rowSelection={rowSelection}
+          getRowId={(p) => p.data.udid}
+          overlayNoRowsTemplate={`<span class="opacity-50">${t("devices.noDevices")}</span>`}
+          onSelectionChanged={(e) => {
+            const udids = e.api.getSelectedRows().map((r) => r.udid);
+            setSelected(udids);
+          }}
+          onRowDoubleClicked={(e) => {
+            if (e.data) navigate(`/mdm/devices/${e.data.udid}`);
+          }}
+        />
       </div>
     </div>
   );

@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDialog } from "../components/DialogProvider";
 import { Link } from "react-router-dom";
-import { Search, Plus, Download, Filter, X, Edit3, Trash2 } from "lucide-react";
+import { Search, Plus, Download, Filter, X, Edit3, Trash2, FileDown, Upload } from "lucide-react";
+import type { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 import apiClient from "../lib/apiClient";
 import { AssetForm } from "../components/AssetForm";
+import { DataGrid } from "../components/DataGrid";
 
 interface AssetRow {
   id: string;
@@ -58,6 +60,8 @@ export function AssetList() {
   const [filterStatus, setFilterStatus] = useState("");
   const [filterLinked, setFilterLinked] = useState(""); // "mdm" | "standalone" | ""
   const [editingAssetId, setEditingAssetId] = useState<string | null>(null); // asset id or "new"
+  const [importing, setImporting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const loadAssets = async () => {
     setLoading(true);
@@ -73,6 +77,38 @@ export function AssetList() {
     apiClient.get("/api/categories").then(({ data }) => setCategories(data.categories || [])).catch(() => {});
     apiClient.get("/api/users-list").then(({ data }) => setUsers(data.users || [])).catch(() => {});
   }, []);
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!/\.xlsx$/i.test(file.name)) {
+      await dialog.error(t("assets.importBadFormat"));
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
+    setImporting(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const { data } = await apiClient.post("/api/assets-import", form);
+      const lines = [
+        t("assets.importCreated", { count: data.created ?? 0 }),
+        t("assets.importFailed", { count: data.failed ?? 0 }),
+      ];
+      if (Array.isArray(data.errors) && data.errors.length > 0) {
+        lines.push("");
+        lines.push(...data.errors.slice(0, 20));
+        if (data.errors.length > 20) lines.push(`… (+${data.errors.length - 20})`);
+      }
+      await dialog.alert(lines.join("\n"));
+      loadAssets();
+    } catch (err: any) {
+      await dialog.error(t("assets.importError") + ": " + (err?.response?.data?.error || err?.message || ""));
+    } finally {
+      setImporting(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
 
   const deleteAsset = async (id: string) => {
     if (!(await dialog.confirm("確定要刪除此財產資訊？"))) return;
@@ -110,6 +146,101 @@ export function AssetList() {
     ...c,
     label: "\u00A0\u00A0".repeat(c.level) + c.name,
   }));
+
+  const columnDefs = useMemo<ColDef<AssetRow>[]>(() => [
+    {
+      headerName: t("assets.assetNumber"),
+      field: "asset_number",
+      width: 140,
+      cellClass: "font-mono text-xs",
+      valueFormatter: (p) => p.value || "-",
+    },
+    {
+      headerName: t("assets.name"),
+      field: "name",
+      minWidth: 100,
+      cellClass: "font-medium",
+      valueFormatter: (p) => p.value || "-",
+
+    },
+    {
+      headerName: t("assets.spec"),
+      field: "spec",
+      minWidth: 140,
+      cellClass: "text-sm opacity-70",
+      valueFormatter: (p) => p.value || "-",
+      hide:true
+    },
+    {
+      headerName: "分類",
+      field: "category_name",
+      width: 140,
+      cellRenderer: (p: ICellRendererParams<AssetRow>) =>
+        p.value
+          ? <span className="badge badge-ghost badge-sm">{p.value}</span>
+          : <span className="opacity-30">-</span>,
+    },
+    {
+      headerName: t("assets.custodian"),
+      field: "custodian_name",
+      width: 120,
+      valueFormatter: (p) => p.value || "-",
+    },
+    {
+      headerName: t("assets.currentHolder"),
+      field: "current_holder_name",
+      width: 140,
+      cellRenderer: (p: ICellRendererParams<AssetRow>) =>
+        p.value
+          ? <span className="badge badge-warning badge-sm">{p.value}</span>
+          : <span className="opacity-30">-</span>,
+    },
+    {
+      headerName: "狀態",
+      field: "asset_status",
+      width: 100,
+      cellRenderer: (p: ICellRendererParams<AssetRow>) => {
+        const st = ASSET_STATUS_CONFIG[p.value as string] || ASSET_STATUS_CONFIG.available;
+        return <span className={`badge badge-sm ${st.badge}`}>{st.label}</span>;
+      },
+    },
+    {
+      headerName: "關聯裝置",
+      field: "device_udid",
+      width: 160,
+      cellRenderer: (p: ICellRendererParams<AssetRow>) => {
+        const a = p.data!;
+        return a.device_udid ? (
+          <Link to={`/mdm/devices/${a.device_udid}`} className="link link-primary text-xs">
+            {a.device_name || a.device_serial || a.device_udid.substring(0, 8)}
+          </Link>
+        ) : (
+          <span className="badge badge-outline badge-sm">獨立資產</span>
+        );
+      },
+    },
+    {
+      headerName: t("assets.location"),
+      field: "location",
+      minWidth: 120,
+      cellClass: "text-sm opacity-70",
+      valueFormatter: (p) => p.value || "-",
+    },
+    {
+      headerName: t("common.actions"),
+      colId: "actions",
+      width: 100,
+      sortable: false,
+      filter: false,
+      pinned: "right",
+      cellRenderer: (p: ICellRendererParams<AssetRow>) => (
+        <div className="flex gap-1 h-full items-center">
+          <button onClick={() => setEditingAssetId(p.data!.id)} className="btn btn-ghost btn-xs"><Edit3 size={14} /></button>
+          <button onClick={() => deleteAsset(p.data!.id)} className="btn btn-ghost btn-xs text-error"><Trash2 size={14} /></button>
+        </div>
+      ),
+    },
+  ], [t]);
 
   // Editing inline
   if (editingAssetId) {
@@ -156,6 +287,26 @@ export function AssetList() {
           <button onClick={() => setEditingAssetId("new")} className="btn btn-primary btn-sm gap-1">
             <Plus size={14} /> {t("assets.add")}
           </button>
+          <button onClick={() => window.open("/api/assets-template", "_blank")} className="btn btn-ghost btn-sm gap-1">
+            <FileDown size={14} /> {t("assets.downloadTemplate")}
+          </button>
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={importing}
+            className="btn btn-outline btn-sm gap-1"
+          >
+            {importing
+              ? <span className="loading loading-spinner loading-xs"></span>
+              : <Upload size={14} />}
+            {importing ? t("assets.importing") : t("assets.import")}
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".xlsx"
+            className="hidden"
+            onChange={handleImport}
+          />
           <button onClick={() => window.open("/api/assets-export", "_blank")} className="btn btn-outline btn-sm gap-1">
             <Download size={14} /> Excel
           </button>
@@ -191,68 +342,15 @@ export function AssetList() {
         )}
       </div>
 
-      {/* Table */}
-      <div className="card bg-base-100 shadow">
-        <div className="overflow-x-auto">
-          <table className="table table-sm">
-            <thead>
-              <tr>
-                <th>{t("assets.assetNumber")}</th>
-                <th>{t("assets.name")}</th>
-                <th>{t("assets.spec")}</th>
-                <th>分類</th>
-                <th>{t("assets.custodian")}</th>
-                <th>{t("assets.currentHolder")}</th>
-                <th>狀態</th>
-                <th>關聯裝置</th>
-                <th>{t("assets.location")}</th>
-                <th>{t("common.actions")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={10} className="text-center py-8"><span className="loading loading-spinner loading-md"></span></td></tr>
-              ) : filtered.length === 0 ? (
-                <tr><td colSpan={10} className="text-center py-8 text-base-content/50">{t("assets.noAsset")}</td></tr>
-              ) : filtered.map((a) => {
-                const st = ASSET_STATUS_CONFIG[a.asset_status] || ASSET_STATUS_CONFIG.available;
-                return (
-                  <tr key={a.id} className="hover">
-                    <td className="font-mono text-xs">{a.asset_number || "-"}</td>
-                    <td className="font-medium">{a.name || "-"}</td>
-                    <td className="text-sm opacity-70">{a.spec || "-"}</td>
-                    <td className="text-sm">
-                      {a.category_name ? <span className="badge badge-ghost badge-sm">{a.category_name}</span> : <span className="opacity-30">-</span>}
-                    </td>
-                    <td className="text-sm">{a.custodian_name || <span className="opacity-30">-</span>}</td>
-                    <td className="text-sm">
-                      {a.current_holder_name
-                        ? <span className="badge badge-warning badge-sm">{a.current_holder_name}</span>
-                        : <span className="opacity-30">-</span>}
-                    </td>
-                    <td><span className={`badge badge-sm ${st.badge}`}>{st.label}</span></td>
-                    <td className="text-sm">
-                      {a.device_udid ? (
-                        <Link to={`/mdm/devices/${a.device_udid}`} className="link link-primary text-xs">
-                          {a.device_name || a.device_serial || a.device_udid.substring(0, 8)}
-                        </Link>
-                      ) : (
-                        <span className="badge badge-outline badge-sm">獨立資產</span>
-                      )}
-                    </td>
-                    <td className="text-sm opacity-70">{a.location || "-"}</td>
-                    <td>
-                      <div className="flex gap-1">
-                        <button onClick={() => setEditingAssetId(a.id)} className="btn btn-ghost btn-xs"><Edit3 size={14} /></button>
-                        <button onClick={() => deleteAsset(a.id)} className="btn btn-ghost btn-xs text-error"><Trash2 size={14} /></button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+      {/* Grid */}
+      <div className="card bg-base-100 shadow p-2">
+        <DataGrid<AssetRow>
+          rowData={filtered}
+          columnDefs={columnDefs}
+          loading={loading}
+          getRowId={(p) => p.data.id}
+          overlayNoRowsTemplate={`<span class="opacity-50">${t("assets.noAsset")}</span>`}
+        />
       </div>
     </div>
   );

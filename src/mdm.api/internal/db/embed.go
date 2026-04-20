@@ -49,3 +49,6 @@ var Migration015SQL string
 
 //go:embed migrations/016_custody_redesign.up.sql
 var Migration016SQL string
+
+//go:embed migrations/017_mail_settings.up.sql
+var Migration017SQL string

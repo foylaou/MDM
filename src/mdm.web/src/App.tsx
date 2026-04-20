@@ -1,4 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AgGridProvider } from "ag-grid-react";
+import { AllEnterpriseModule, IntegratedChartsModule } from "ag-grid-enterprise";
+import { AgChartsEnterpriseModule } from "ag-charts-enterprise";
 import { useAuthStore } from "./stores/authStore";
 import { Layout } from "./components/Layout";
 import { ModuleGuard } from "./components/ModuleGuard";
@@ -20,6 +23,7 @@ import { Categories } from "./pages/Categories";
 import { Inventory } from "./pages/Inventory";
 import { AssetList } from "./pages/AssetList";
 import { Notifications } from "./pages/Notifications";
+import { Settings } from "./pages/Settings";
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 
@@ -107,6 +111,7 @@ function AppRoutes() {
         {/* Admin */}
         <Route path="/admin/users" element={<Users />} />
         <Route path="/admin/audit" element={<Audit />} />
+        <Route path="/admin/settings" element={<Settings />} />
 
         {/* Backward-compatible redirects */}
         <Route path="/devices/:udid" element={<DeviceRedirect />} />
@@ -126,12 +131,22 @@ function AppRoutes() {
   );
 }
 
+const agGridModules = [
+  AllEnterpriseModule,
+  IntegratedChartsModule.with(AgChartsEnterpriseModule),
+];
+
 export default function App() {
   return (
-    <BrowserRouter>
-      <DialogProvider>
-        <AppRoutes />
-      </DialogProvider>
-    </BrowserRouter>
+    <AgGridProvider
+      modules={agGridModules}
+      licenseKey={import.meta.env.VITE_AG_GRID_LICENSE as string | undefined}
+    >
+      <BrowserRouter>
+        <DialogProvider>
+          <AppRoutes />
+        </DialogProvider>
+      </BrowserRouter>
+    </AgGridProvider>
   );
 }

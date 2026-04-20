@@ -38,6 +38,7 @@ interface DeviceStore {
   toggleSelect: (udid: string) => void;
   selectAll: () => void;
   clearSelection: () => void;
+  setSelected: (udids: string[]) => void;
 }
 
 export const useDeviceStore = create<DeviceStore>((set, get) => ({
@@ -87,4 +88,5 @@ export const useDeviceStore = create<DeviceStore>((set, get) => ({
   })),
 
   clearSelection: () => set({ selected: new Set<string>() }),
+  setSelected: (udids) => set({ selected: new Set<string>(udids) }),
 }));

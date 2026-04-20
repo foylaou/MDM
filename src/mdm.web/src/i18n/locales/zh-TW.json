@@ -22,6 +22,7 @@
     "group_admin": "系統管理",
     "users": "使用者管理",
     "audit": "稽核日誌",
+    "settings": "系統管理設定",
     "forbidden": "無存取權限",
     "forbidden_desc": "您沒有此模組的存取權限，請聯繫管理員。"
   },
@@ -274,7 +275,14 @@
     "edit": "編輯",
     "noAsset": "尚無財產資訊",
     "syncInfo": "同步裝置資訊",
-    "syncingInfo": "同步中..."
+    "syncingInfo": "同步中...",
+    "downloadTemplate": "下載範本",
+    "import": "匯入",
+    "importing": "匯入中...",
+    "importBadFormat": "請選擇 .xlsx 檔案",
+    "importCreated": "成功建立 {{count}} 筆",
+    "importFailed": "失敗 {{count}} 筆",
+    "importError": "匯入失敗"
   },
   "custody": {
     "assignTitle": "指派保管人",
@@ -357,5 +365,34 @@
   "stream": {
     "on": "事件串流已開啟",
     "off": "事件串流已關閉"
+  },
+  "settings": {
+    "subtitle": "郵件伺服器設定（寄件 SMTP / 收件 IMAP 或 POP3）",
+    "outgoing": "寄件伺服器 (SMTP)",
+    "incoming": "收件伺服器 (IMAP / POP3)",
+    "enabled": "啟用",
+    "host": "主機",
+    "port": "連接埠",
+    "username": "帳號",
+    "password": "密碼",
+    "passwordSet": "(已設定，留空保留原值)",
+    "from": "寄件者地址",
+    "fromName": "寄件者名稱",
+    "useTls": "使用 TLS",
+    "protocol": "通訊協定",
+    "mailbox": "信箱",
+    "testTo": "測試收件人",
+    "testSmtp": "寄出測試信",
+    "testSmtpOk": "已寄出測試信至 {{to}}",
+    "testSmtpFailed": "寄信失敗",
+    "testIncoming": "連線測試",
+    "testIncomingOk": "連線成功：{{address}}",
+    "testIncomingFailed": "連線失敗",
+    "testIncomingHint": "僅測試 TCP/TLS 連線與伺服器回應，不驗證登入。",
+    "testToRequired": "請輸入測試收件人",
+    "saveOk": "設定已儲存",
+    "saveFailed": "儲存失敗",
+    "loadFailed": "讀取設定失敗",
+    "updatedAt": "最後更新：{{at}}"
   }
 }

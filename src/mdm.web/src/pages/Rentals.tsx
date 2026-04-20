@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useAuthStore } from "../stores/authStore";
 import { useTranslation } from "react-i18next";
-import { DevicePicker } from "../components/DevicePicker";
+import { AssetPicker } from "../components/AssetPicker";
 import apiClient from "../lib/apiClient";
 import { useDialog } from "../components/DialogProvider";
 import {
@@ -21,7 +21,10 @@ interface ReturnChecklist {
 
 interface Rental {
   id: string;
-  device_udid: string;
+  asset_id: string | null;
+  device_udid: string | null;
+  asset_number: string;
+  asset_name: string;
   borrower_id: string;
   borrower_name: string;
   approver_id?: string;
@@ -139,7 +142,7 @@ export function Rentals() {
   const [selectedNumbers, setSelectedNumbers] = useState<Set<number>>(new Set());
 
   // Create form
-  const [selectedDevices, setSelectedDevices] = useState<string[]>([]);
+  const [selectedAssets, setSelectedAssets] = useState<string[]>([]);
   const [borrowerId, setBorrowerId] = useState("");
   const [purpose, setPurpose] = useState("");
   const [expectedReturn, setExpectedReturn] = useState("");
@@ -171,18 +174,18 @@ export function Rentals() {
   useEffect(() => { loadUsers(); }, []);
 
   const handleCreate = async () => {
-    if (!borrowerId || selectedDevices.length === 0) return;
+    if (!borrowerId || selectedAssets.length === 0) return;
     setCreating(true);
     try {
       await apiClient.post("/api/rentals", {
-        device_udids: selectedDevices,
+        asset_ids: selectedAssets,
         borrower_id: borrowerId,
         purpose,
         expected_return: expectedReturn || null,
         notes,
       });
       setShowCreate(false);
-      setSelectedDevices([]);
+      setSelectedAssets([]);
       setBorrowerId("");
       setPurpose("");
       setExpectedReturn("");
@@ -342,21 +345,26 @@ export function Rentals() {
       ),
     });
     defs.push({
-      headerName: "裝置",
+      headerName: "資產",
       colId: "device",
       minWidth: 200,
-      valueGetter: (p) => p.data?.rentals[0].device_name || p.data?.rentals[0].device_serial || "",
+      valueGetter: (p) => {
+        const r = p.data?.rentals[0];
+        return r?.device_name || r?.asset_name || r?.device_serial || r?.asset_number || "";
+      },
       cellRenderer: (p: ICellRendererParams<RentalGroup>) => {
         const first = p.data!.rentals[0];
+        const primary = first.device_name || first.asset_name || first.device_serial || first.asset_number || "-";
+        const secondary = first.device_serial || first.asset_number;
         return p.data!.rentals.length > 1 ? (
           <div>
-            <span className="font-medium">{first.device_name || first.device_serial}</span>
-            <span className="badge badge-sm badge-outline ml-1">共 {p.data!.rentals.length} 台</span>
+            <span className="font-medium">{primary}</span>
+            <span className="badge badge-sm badge-outline ml-1">共 {p.data!.rentals.length} 件</span>
           </div>
         ) : (
           <div>
-            <div className="font-medium">{first.device_name || first.device_serial}</div>
-            <div className="text-xs opacity-50 font-mono">{first.device_serial}</div>
+            <div className="font-medium">{primary}{!first.device_udid && <span className="badge badge-xs badge-outline ml-1">獨立</span>}</div>
+            <div className="text-xs opacity-50 font-mono">{secondary}</div>
           </div>
         );
       },
@@ -417,8 +425,17 @@ export function Rentals() {
     detailGridOptions: {
       columnDefs: [
         { headerName: "#", valueGetter: (p: any) => (p.node?.rowIndex ?? 0) + 1, width: 60 },
-        { headerName: "裝置名稱", field: "device_name", flex: 1, valueFormatter: (p: any) => p.value || p.data?.device_serial || "-" },
-        { headerName: "序號", field: "device_serial", flex: 1, cellClass: "font-mono text-xs" },
+        {
+          headerName: "名稱",
+          flex: 1,
+          valueGetter: (p: any) => p.data?.device_name || p.data?.asset_name || p.data?.device_serial || p.data?.asset_number || "-",
+        },
+        {
+          headerName: "序號/財產編號",
+          flex: 1,
+          cellClass: "font-mono text-xs",
+          valueGetter: (p: any) => p.data?.device_serial || p.data?.asset_number || "-",
+        },
       ] as ColDef<Rental>[],
       defaultColDef: { sortable: false, filter: false, resizable: true },
       domLayout: "autoHeight" as const,
@@ -483,8 +500,8 @@ export function Rentals() {
             <h2 className="card-title text-base">新增租借申請</h2>
             <div className="space-y-4 mt-2">
               <div className="form-control">
-                <label className="label"><span className="label-text font-medium">選擇裝置</span></label>
-                <DevicePicker selected={selectedDevices} onChange={setSelectedDevices} showFilters />
+                <label className="label"><span className="label-text font-medium">選擇資產</span></label>
+                <AssetPicker selected={selectedAssets} onChange={setSelectedAssets} showFilters />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="form-control">
@@ -514,7 +531,7 @@ export function Rentals() {
                 </div>
               </div>
               <div className="flex gap-2">
-                <button onClick={handleCreate} disabled={creating || !borrowerId || selectedDevices.length === 0} className="btn btn-success btn-sm gap-1">
+                <button onClick={handleCreate} disabled={creating || !borrowerId || selectedAssets.length === 0} className="btn btn-success btn-sm gap-1">
                   {creating && <span className="loading loading-spinner loading-xs"></span>}
                   提交申請
                 </button>

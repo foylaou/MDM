@@ -151,7 +151,8 @@ type InventoryItem struct {
 
 type Rental struct {
 	ID              string
-	DeviceUdid      string
+	AssetID         *string // primary link (may be nil for legacy rows)
+	DeviceUdid      string  // nullable in DB; empty string for standalone assets
 	BorrowerID      string
 	BorrowerName    string
 	ApproverID      *string
@@ -173,6 +174,8 @@ type Rental struct {
 	// Joined fields (read-only)
 	DeviceName   string
 	DeviceSerial string
+	AssetNumber  string
+	AssetName    string
 }
 
 // --- App Management ---

@@ -43,13 +43,19 @@ func (c *RentalController) buildNotifyData(ctx context.Context, rentalNumber int
 	if expectedReturn != nil {
 		data.ExpectedReturn = expectedReturn.Format("2006-01-02")
 	}
-	// Gather device names from all rentals with this number
+	// Gather device/asset names from all rentals with this number
 	rentals, _ := c.rentalRepo.List(ctx, "", "", false)
 	for _, rl := range rentals {
 		if rl.RentalNumber == rentalNumber {
 			name := rl.DeviceName
 			if name == "" {
+				name = rl.AssetName
+			}
+			if name == "" {
 				name = rl.DeviceSerial
+			}
+			if name == "" {
+				name = rl.AssetNumber
 			}
 			if name == "" {
 				name = rl.DeviceUdid
@@ -65,6 +71,53 @@ func (c *RentalController) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/rentals-export", c.handleExport)
 	mux.HandleFunc("/api/rentals/", c.handleRentalByID)
 	mux.HandleFunc("/api/rentals-archive", c.handleArchive)
+	mux.HandleFunc("/api/rental-pickable-assets", c.handlePickableAssets)
+}
+
+// handlePickableAssets godoc
+// @Summary 可借用資產列表（含獨立資產）
+// @Tags Rental
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Router /api/rental-pickable-assets [get]
+func (c *RentalController) handlePickableAssets(w http.ResponseWriter, r *http.Request) {
+	if _, err := c.auth.RequireAuth(r); err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+	items, err := c.assetRepo.ListRentalPickable(r.Context())
+	if err != nil {
+		log.Printf("rental-pickable-assets: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	type row struct {
+		AssetID      string  `json:"asset_id"`
+		AssetNumber  string  `json:"asset_number"`
+		Name         string  `json:"name"`
+		Spec         string  `json:"spec"`
+		DeviceUdid   *string `json:"device_udid"`
+		SerialNumber string  `json:"serial_number"`
+		Model        string  `json:"model"`
+		OSVersion    string  `json:"os_version"`
+		AssetStatus  string  `json:"asset_status"`
+		CategoryID   *string `json:"category_id"`
+		CategoryName string  `json:"category_name"`
+	}
+	rows := make([]row, 0, len(items))
+	for _, it := range items {
+		rows = append(rows, row{
+			AssetID: it.AssetID, AssetNumber: it.AssetNumber, Name: it.Name, Spec: it.Spec,
+			DeviceUdid: it.DeviceUdid,
+			SerialNumber: it.SerialNumber, Model: it.Model, OSVersion: it.OSVersion,
+			AssetStatus: it.AssetStatus, CategoryID: it.CategoryID, CategoryName: it.CategoryName,
+		})
+	}
+	writeJSON(w, map[string]interface{}{"assets": rows})
 }
 
 // handleRentals godoc
@@ -103,13 +156,14 @@ func (c *RentalController) handleRentals(w http.ResponseWriter, r *http.Request)
 		rows := make([]map[string]interface{}, 0, len(rentals))
 		for _, rl := range rentals {
 			row := map[string]interface{}{
-				"id": rl.ID, "device_udid": rl.DeviceUdid,
+				"id": rl.ID, "asset_id": rl.AssetID, "device_udid": rl.DeviceUdid,
 				"borrower_id": rl.BorrowerID, "borrower_name": rl.BorrowerName,
 				"approver_id": rl.ApproverID, "approver_name": rl.ApproverName,
 				"status": rl.Status, "purpose": rl.Purpose,
 				"borrow_date": rl.BorrowDate.Format(time.RFC3339), "notes": rl.Notes,
 				"created_at": rl.CreatedAt.Format(time.RFC3339), "updated_at": rl.UpdatedAt.Format(time.RFC3339),
 				"device_name": rl.DeviceName, "device_serial": rl.DeviceSerial,
+				"asset_number": rl.AssetNumber, "asset_name": rl.AssetName,
 				"custodian_id": rl.CustodianID, "custodian_name": rl.CustodianName,
 				"rental_number": rl.RentalNumber, "is_archived": rl.IsArchived,
 				"return_checklist": rl.ReturnChecklist, "return_notes": rl.ReturnNotes,
@@ -130,14 +184,32 @@ func (c *RentalController) handleRentals(w http.ResponseWriter, r *http.Request)
 
 	case http.MethodPost:
 		var body struct {
-			DeviceUdids    []string `json:"device_udids"`
+			AssetIDs       []string `json:"asset_ids"`
+			DeviceUdids    []string `json:"device_udids"` // legacy fallback
 			BorrowerID     string   `json:"borrower_id"`
 			Purpose        string   `json:"purpose"`
 			ExpectedReturn *string  `json:"expected_return"`
 			Notes          string   `json:"notes"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.BorrowerID == "" || len(body.DeviceUdids) == 0 {
-			writeError(w, http.StatusBadRequest, "device_udids and borrower_id required")
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.BorrowerID == "" {
+			writeError(w, http.StatusBadRequest, "asset_ids and borrower_id required")
+			return
+		}
+
+		// Legacy: translate device_udids -> asset_ids via assets table.
+		if len(body.AssetIDs) == 0 && len(body.DeviceUdids) > 0 {
+			for _, udid := range body.DeviceUdids {
+				a, err := c.assetRepo.GetByDeviceUdid(r.Context(), udid)
+				if err != nil || a == nil {
+					writeError(w, http.StatusBadRequest, "device has no linked asset: "+udid)
+					return
+				}
+				body.AssetIDs = append(body.AssetIDs, a.ID)
+			}
+		}
+
+		if len(body.AssetIDs) == 0 {
+			writeError(w, http.StatusBadRequest, "asset_ids required")
 			return
 		}
 
@@ -151,22 +223,43 @@ func (c *RentalController) handleRentals(w http.ResponseWriter, r *http.Request)
 			}
 		}
 
-		// Check availability
+		// Check availability and collect asset → udid mapping for later use
+		type resolvedAsset struct {
+			assetID string
+			udid    string // may be empty for standalone
+			name    string
+		}
+		resolved := make([]resolvedAsset, 0, len(body.AssetIDs))
 		var unavailable []string
-		for _, udid := range body.DeviceUdids {
-			assetStatus, isRented, isLostMode, _ := c.rentalRepo.CheckDeviceAvailability(r.Context(), udid)
-			if isRented {
-				unavailable = append(unavailable, udid+" (借出中)")
-			} else if isLostMode {
-				unavailable = append(unavailable, udid+" (遺失)")
-			} else if assetStatus != "available" && assetStatus != "" {
-				unavailable = append(unavailable, udid+" ("+assetStatus+")")
+		for _, aid := range body.AssetIDs {
+			a, err := c.assetRepo.GetByID(r.Context(), aid)
+			if err != nil || a == nil {
+				unavailable = append(unavailable, aid+" (不存在)")
+				continue
 			}
+			status, isRented, name, _ := c.assetRepo.CheckAssetAvailability(r.Context(), aid)
+			label := name
+			if label == "" {
+				label = a.AssetNumber
+			}
+			if isRented {
+				unavailable = append(unavailable, label+" (借出中)")
+				continue
+			}
+			if status != "available" && status != "" {
+				unavailable = append(unavailable, label+" ("+status+")")
+				continue
+			}
+			udid := ""
+			if a.DeviceUdid != nil {
+				udid = *a.DeviceUdid
+			}
+			resolved = append(resolved, resolvedAsset{assetID: aid, udid: udid, name: label})
 		}
 		if len(unavailable) > 0 {
 			w.WriteHeader(http.StatusConflict)
 			json.NewEncoder(w).Encode(map[string]interface{}{
-				"error":   "部分裝置目前無法借出",
+				"error":   "部分資產目前無法借出",
 				"devices": unavailable,
 			})
 			return
@@ -183,9 +276,11 @@ func (c *RentalController) handleRentals(w http.ResponseWriter, r *http.Request)
 		}
 
 		var ids []string
-		for _, udid := range body.DeviceUdids {
+		for _, it := range resolved {
+			assetID := it.assetID
 			rental := &domain.Rental{
-				DeviceUdid:     udid,
+				AssetID:        &assetID,
+				DeviceUdid:     it.udid,
 				BorrowerID:     body.BorrowerID,
 				BorrowerName:   borrowerName,
 				Purpose:        body.Purpose,
@@ -204,18 +299,16 @@ func (c *RentalController) handleRentals(w http.ResponseWriter, r *http.Request)
 		go func() {
 			bgCtx := context.Background()
 			data := c.buildNotifyData(bgCtx, rentalNumber, borrowerName, "", body.Purpose, body.Notes, expectedReturn)
-			// Collect unique custodian emails for the rented devices
 			notified := map[string]bool{}
-			for _, udid := range body.DeviceUdids {
-				assets, _ := c.assetRepo.List(bgCtx, udid)
-				for _, a := range assets {
-					if a.CustodianID != nil && *a.CustodianID != "" {
-						custodian, err := c.userRepo.GetByID(bgCtx, *a.CustodianID)
-						if err == nil && custodian.Email != "" && !notified[custodian.Email] {
-							c.notifySvc.SendRentalRequest(bgCtx, data, custodian.Email)
-							notified[custodian.Email] = true
-						}
-					}
+			for _, it := range resolved {
+				a, err := c.assetRepo.GetByID(bgCtx, it.assetID)
+				if err != nil || a == nil || a.CustodianID == nil || *a.CustodianID == "" {
+					continue
+				}
+				custodian, err := c.userRepo.GetByID(bgCtx, *a.CustodianID)
+				if err == nil && custodian.Email != "" && !notified[custodian.Email] {
+					c.notifySvc.SendRentalRequest(bgCtx, data, custodian.Email)
+					notified[custodian.Email] = true
 				}
 			}
 		}()
@@ -298,9 +391,9 @@ func (c *RentalController) handleRentalByID(w http.ResponseWriter, r *http.Reque
 			}
 			c.rentalRepo.ActivateByNumber(r.Context(), rental.RentalNumber)
 			borrowerID, borrowerName, _ := c.rentalRepo.GetBorrowerInfo(r.Context(), id)
-			udids, _ := c.rentalRepo.ListDeviceUdidsByNumber(r.Context(), rental.RentalNumber)
-			for _, udid := range udids {
-				c.assetRepo.SetHolderByUdid(r.Context(), udid, borrowerID, borrowerName)
+			assetIDs, _ := c.rentalRepo.ListAssetIDsByNumber(r.Context(), rental.RentalNumber)
+			for _, aid := range assetIDs {
+				c.assetRepo.SetHolderByID(r.Context(), aid, borrowerID, borrowerName)
 			}
 			// Notify borrower that devices are handed out
 			go func() {
@@ -329,9 +422,9 @@ func (c *RentalController) handleRentalByID(w http.ResponseWriter, r *http.Reque
 				checklistJSON, _ = json.Marshal(returnBody.Checklist)
 			}
 			c.rentalRepo.ReturnByNumber(r.Context(), rental.RentalNumber, checklistJSON, returnBody.Notes)
-			udids, _ := c.rentalRepo.ListDeviceUdidsByNumber(r.Context(), rental.RentalNumber)
-			for _, udid := range udids {
-				c.assetRepo.ClearHolderByUdid(r.Context(), udid)
+			assetIDs, _ := c.rentalRepo.ListAssetIDsByNumber(r.Context(), rental.RentalNumber)
+			for _, aid := range assetIDs {
+				c.assetRepo.ClearHolderByID(r.Context(), aid)
 			}
 			// Notify custodian that devices are returned
 			go func() {
@@ -340,16 +433,15 @@ func (c *RentalController) handleRentalByID(w http.ResponseWriter, r *http.Reque
 				data.ReturnNotes = returnBody.Notes
 				// Notify each custodian
 				notified := map[string]bool{}
-				for _, udid := range udids {
-					assets, _ := c.assetRepo.List(bgCtx, udid)
-					for _, a := range assets {
-						if a.CustodianID != nil && *a.CustodianID != "" {
-							custodian, err := c.userRepo.GetByID(bgCtx, *a.CustodianID)
-							if err == nil && custodian.Email != "" && !notified[custodian.Email] {
-								c.notifySvc.SendRentalReturned(bgCtx, data, custodian.Email)
-								notified[custodian.Email] = true
-							}
-						}
+				for _, aid := range assetIDs {
+					a, err := c.assetRepo.GetByID(bgCtx, aid)
+					if err != nil || a == nil || a.CustodianID == nil || *a.CustodianID == "" {
+						continue
+					}
+					custodian, err := c.userRepo.GetByID(bgCtx, *a.CustodianID)
+					if err == nil && custodian.Email != "" && !notified[custodian.Email] {
+						c.notifySvc.SendRentalReturned(bgCtx, data, custodian.Email)
+						notified[custodian.Email] = true
 					}
 				}
 			}()

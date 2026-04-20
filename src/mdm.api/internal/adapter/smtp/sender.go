@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/mail"
 	"net/smtp"
+	"strings"
 	"sync"
 
 	"github.com/anthropics/mdm-server/internal/config"
@@ -75,16 +77,40 @@ func SendWith(cfg config.SMTPConfig, to, subject, htmlBody string) error {
 	return sendWith(cfg, to, subject, htmlBody)
 }
 
+func sanitizeAddress(addr string) (string, error) {
+	trimmed := strings.TrimSpace(addr)
+	if trimmed == "" {
+		return "", errors.New("smtp: address is required")
+	}
+	if strings.ContainsAny(trimmed, "\r\n") {
+		return "", errors.New("smtp: invalid address")
+	}
+	parsed, err := mail.ParseAddress(trimmed)
+	if err != nil {
+		return "", fmt.Errorf("smtp: invalid address: %w", err)
+	}
+	return parsed.Address, nil
+}
+
 func sendWith(cfg config.SMTPConfig, to, subject, htmlBody string) error {
 	addr := net.JoinHostPort(cfg.Host, cfg.Port)
 
-	fromHeader := cfg.From
+	safeTo, err := sanitizeAddress(to)
+	if err != nil {
+		return err
+	}
+	safeFrom, err := sanitizeAddress(cfg.From)
+	if err != nil {
+		return err
+	}
+
+	fromHeader := safeFrom
 	if cfg.FromName != "" {
-		fromHeader = fmt.Sprintf("%s <%s>", cfg.FromName, cfg.From)
+		fromHeader = fmt.Sprintf("%s <%s>", cfg.FromName, safeFrom)
 	}
 
 	msg := "From: " + fromHeader + "\r\n" +
-		"To: " + to + "\r\n" +
+		"To: " + safeTo + "\r\n" +
 		"Subject: " + subject + "\r\n" +
 		"MIME-Version: 1.0\r\n" +
 		"Content-Type: text/html; charset=\"UTF-8\"\r\n" +
@@ -93,17 +119,16 @@ func sendWith(cfg config.SMTPConfig, to, subject, htmlBody string) error {
 
 	auth := smtp.PlainAuth("", cfg.Username, cfg.Password, cfg.Host)
 
-	var err error
 	if cfg.TLS {
-		err = sendWithTLS(addr, auth, cfg.Host, cfg.From, to, []byte(msg))
+		err = sendWithTLS(addr, auth, cfg.Host, safeFrom, safeTo, []byte(msg))
 	} else {
-		err = smtp.SendMail(addr, auth, cfg.From, []string{to}, []byte(msg))
+		err = smtp.SendMail(addr, auth, safeFrom, []string{safeTo}, []byte(msg))
 	}
 	if err != nil {
-		log.Printf("[smtp] send to %s failed: %v", to, err)
+		log.Printf("[smtp] send to %s failed: %v", safeTo, err)
 		return err
 	}
-	log.Printf("[smtp] sent to %s: %s", to, subject)
+	log.Printf("[smtp] sent to %s: %s", safeTo, subject)
 	return nil
 }
 

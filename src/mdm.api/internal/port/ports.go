@@ -12,6 +12,9 @@ type UserRepository interface {
 	Create(ctx context.Context, user *domain.User) error
 	GetByID(ctx context.Context, id string) (*domain.User, error)
 	GetByUsername(ctx context.Context, username string) (*domain.User, error)
+	GetByEmail(ctx context.Context, email string) (*domain.User, error)
+	GetBySSOSub(ctx context.Context, sub string) (*domain.User, error)
+	LinkSSO(ctx context.Context, userID string, sub string) error
 	List(ctx context.Context) ([]*domain.User, error)
 	Update(ctx context.Context, user *domain.User) error
 	Delete(ctx context.Context, id string) error
@@ -172,6 +175,12 @@ type EmailSender interface {
 type MailSettingsRepository interface {
 	Get(ctx context.Context) (*domain.MailSettings, error)
 	Upsert(ctx context.Context, settings *domain.MailSettings, updatedBy string) error
+}
+
+// SSOSettingsRepository persists the OIDC/SSO configuration (single row).
+type SSOSettingsRepository interface {
+	Get(ctx context.Context) (*domain.SSOSettings, error)
+	Upsert(ctx context.Context, settings *domain.SSOSettings, updatedBy string) error
 }
 
 // EventBroker fans out MDM events to subscribers.

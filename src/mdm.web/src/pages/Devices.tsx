@@ -127,11 +127,11 @@ export function Devices() {
 
   const columnDefs = useMemo<ColDef<DeviceRow>[]>(() => [
     {
-      headerName: t("devices.name"),
-      field: "device_name",
+      headerName: "財產編號",
+      field: "asset_number",
       minWidth: 160,
       cellRenderer: (p: ICellRendererParams<DeviceRow>) =>
-        <div className="font-medium text-primary">{p.value || "-"}</div>,
+        <div className="font-medium text-primary">{p.value || p.data?.device_name || "-"}</div>,
     },
     { headerName: t("devices.serial"), field: "serial_number", width: 160, cellClass: "font-mono text-xs" },
     {
@@ -144,18 +144,22 @@ export function Devices() {
           : <span className="opacity-30">-</span>,
     },
     {
-      headerName: "保管人",
+      headerName: "保管人 / 持有人 / 狀態",
       field: "custodian_name",
-      width: 140,
-      valueFormatter: (p) => p.value || "-",
-    },
-    {
-      headerName: "裝置狀態",
-      field: "asset_status",
-      width: 110,
+      width: 200,
       cellRenderer: (p: ICellRendererParams<DeviceRow>) => {
-        const st = ASSET_STATUS_CONFIG[p.value as string] || ASSET_STATUS_CONFIG.available;
-        return <span className={`badge badge-sm ${st.badge}`}>{st.label}</span>;
+        const row = p.data;
+        if (!row) return <span className="opacity-30">-</span>;
+        const st = ASSET_STATUS_CONFIG[row.asset_status] || ASSET_STATUS_CONFIG.available;
+        return (
+          <div className="flex flex-col justify-center gap-0.5 leading-tight py-1">
+            <div className="text-xs font-medium">{row.custodian_name || "-"}</div>
+            {row.current_holder_name && row.current_holder_name !== row.custodian_name && (
+              <div className="text-xs opacity-60">{row.current_holder_name}</div>
+            )}
+            <span className={`badge badge-xs ${st.badge} w-fit`}>{st.label}</span>
+          </div>
+        );
       },
     },
     { headerName: t("devices.model"), field: "model", width: 140, cellClass: "text-sm opacity-70", valueFormatter: (p) => p.value || "-" },

@@ -9,9 +9,11 @@ interface UserRow {
   id: string;
   username: string;
   display_name: string;
+  email: string;
   role: string;
   system_role: string;
   is_active: boolean;
+  sso_linked: boolean;
   permissions: Record<string, string>;
 }
 
@@ -43,7 +45,7 @@ export function Users() {
   const [saving, setSaving] = useState(false);
 
   // Inline edit state
-  const [editForm, setEditForm] = useState({ display_name: "", password: "" });
+  const [editForm, setEditForm] = useState({ display_name: "", email: "", password: "" });
   const [permForm, setPermForm] = useState<Record<string, string>>({});
   const [editSaving, setEditSaving] = useState(false);
 
@@ -76,7 +78,7 @@ export function Users() {
       setExpandedId(null);
     } else {
       setExpandedId(u.id);
-      setEditForm({ display_name: u.display_name, password: "" });
+      setEditForm({ display_name: u.display_name, email: u.email || "", password: "" });
       const perms: Record<string, string> = {};
       for (const m of modules) perms[m] = u.permissions[m] || "none";
       setPermForm(perms);
@@ -87,12 +89,12 @@ export function Users() {
     setEditSaving(true);
     try {
       // Save user fields
-      const userBody: Record<string, unknown> = {};
-      if (editForm.display_name) userBody.display_name = editForm.display_name;
+      const userBody: Record<string, unknown> = {
+        display_name: editForm.display_name,
+        email: editForm.email,
+      };
       if (editForm.password) userBody.password = editForm.password;
-      if (Object.keys(userBody).length > 0) {
-        await apiClient.put(`/api/users/${userId}`, userBody);
-      }
+      await apiClient.put(`/api/users/${userId}`, userBody);
 
       // Save permissions
       await apiClient.put(`/api/users-permissions/${userId}`, permForm);
@@ -223,10 +225,12 @@ export function Users() {
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold">{u.display_name || u.username}</span>
                         {u.display_name && <span className="text-xs text-base-content/50">@{u.username}</span>}
+                        {u.email && <span className="text-xs text-base-content/40">{u.email}</span>}
                         {isSysAdmin && <span className="badge badge-primary badge-sm">系統管理員</span>}
+                        {u.sso_linked && <span className="badge badge-accent badge-sm">SSO</span>}
                         {!u.is_active && <span className="badge badge-error badge-sm">已停用</span>}
                       </div>
                       <div className="mt-1">
@@ -254,12 +258,21 @@ export function Users() {
                   {isExpanded && (
                     <div className="border-t border-base-300 mt-3 pt-4 space-y-4">
                       {/* Basic info */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                         <div className="form-control">
                           <label className="label py-1"><span className="label-text text-xs">{t("users.displayName")}</span></label>
                           <input type="text" value={editForm.display_name}
                             onChange={(e) => setEditForm({ ...editForm, display_name: e.target.value })}
                             className="input input-bordered input-sm" />
+                        </div>
+                        <div className="form-control">
+                          <label className="label py-1">
+                            <span className="label-text text-xs">Email</span>
+                            {u.sso_linked && <span className="badge badge-accent badge-xs label-text-alt">SSO 已綁定</span>}
+                          </label>
+                          <input type="email" value={editForm.email}
+                            onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                            className="input input-bordered input-sm" placeholder="user@example.com" />
                         </div>
                         <div className="form-control">
                           <label className="label py-1"><span className="label-text text-xs">新密碼（留空不修改）</span></label>

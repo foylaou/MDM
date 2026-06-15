@@ -58,7 +58,7 @@ func (c *UserController) handleUserByID(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		fields := map[string]interface{}{}
-		for _, k := range []string{"role", "system_role", "display_name", "is_active"} {
+		for _, k := range []string{"role", "system_role", "display_name", "email", "is_active"} {
 			if v, ok := body[k]; ok {
 				fields[k] = v
 			}
@@ -182,9 +182,11 @@ func (c *UserController) handleUsersList(w http.ResponseWriter, r *http.Request)
 		ID          string            `json:"id"`
 		Username    string            `json:"username"`
 		DisplayName string            `json:"display_name"`
+		Email       string            `json:"email"`
 		Role        string            `json:"role"`
 		SystemRole  string            `json:"system_role"`
 		IsActive    bool              `json:"is_active"`
+		SSOLinked   bool              `json:"sso_linked"`
 		Permissions map[string]string `json:"permissions"`
 	}
 	rows := make([]u, 0, len(users))
@@ -197,8 +199,9 @@ func (c *UserController) handleUsersList(w http.ResponseWriter, r *http.Request)
 		}
 		rows = append(rows, u{
 			ID: user.ID, Username: user.Username,
-			DisplayName: user.DisplayName, Role: user.Role,
-			SystemRole: user.SystemRole, IsActive: user.IsActive,
+			DisplayName: user.DisplayName, Email: user.Email,
+			Role: user.Role, SystemRole: user.SystemRole,
+			IsActive: user.IsActive, SSOLinked: user.SSOSub != "",
 			Permissions: perms,
 		})
 	}

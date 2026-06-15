@@ -5,6 +5,7 @@ export interface DeviceRow {
   udid: string;
   serial_number: string;
   device_name: string;
+  asset_number: string;
   model: string;
   os_version: string;
   last_seen: string;
@@ -13,6 +14,7 @@ export interface DeviceRow {
   is_lost_mode: boolean;
   battery_level: number;
   custodian_name: string;
+  current_holder_name: string;
   category_name: string;
   category_id: string | null;
   custodian_id: string | null;

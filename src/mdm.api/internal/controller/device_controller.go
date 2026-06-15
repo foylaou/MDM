@@ -138,32 +138,36 @@ func (c *DeviceController) handleDevicesList(w http.ResponseWriter, r *http.Requ
 	}
 
 	type deviceRow struct {
-		UDID             string  `json:"udid"`
-		SerialNumber     string  `json:"serial_number"`
-		DeviceName       string  `json:"device_name"`
-		Model            string  `json:"model"`
-		OSVersion        string  `json:"os_version"`
-		LastSeen         string  `json:"last_seen"`
-		EnrollmentStatus string  `json:"enrollment_status"`
-		IsSupervised     bool    `json:"is_supervised"`
-		IsLostMode       bool    `json:"is_lost_mode"`
-		BatteryLevel     float64 `json:"battery_level"`
-		CustodianName    string  `json:"custodian_name"`
-		CategoryName     string  `json:"category_name"`
-		CategoryID       *string `json:"category_id"`
-		CustodianID      *string `json:"custodian_id"`
-		AssetStatus      string  `json:"asset_status"`
+		UDID              string  `json:"udid"`
+		SerialNumber      string  `json:"serial_number"`
+		DeviceName        string  `json:"device_name"`
+		AssetNumber       string  `json:"asset_number"`
+		Model             string  `json:"model"`
+		OSVersion         string  `json:"os_version"`
+		LastSeen          string  `json:"last_seen"`
+		EnrollmentStatus  string  `json:"enrollment_status"`
+		IsSupervised      bool    `json:"is_supervised"`
+		IsLostMode        bool    `json:"is_lost_mode"`
+		BatteryLevel      float64 `json:"battery_level"`
+		CustodianName     string  `json:"custodian_name"`
+		CurrentHolderName string  `json:"current_holder_name"`
+		CategoryName      string  `json:"category_name"`
+		CategoryID        *string `json:"category_id"`
+		CustodianID       *string `json:"custodian_id"`
+		AssetStatus       string  `json:"asset_status"`
 	}
 
 	rows := make([]deviceRow, 0, len(devices))
 	for _, d := range devices {
 		rows = append(rows, deviceRow{
 			UDID: d.UDID, SerialNumber: d.SerialNumber, DeviceName: d.DeviceName,
-			Model: d.Model, OSVersion: d.OSVersion, LastSeen: d.LastSeen.Format(time.RFC3339),
+			AssetNumber: d.AssetNumber,
+			Model:       d.Model, OSVersion: d.OSVersion, LastSeen: d.LastSeen.Format(time.RFC3339),
 			EnrollmentStatus: d.EnrollmentStatus, IsSupervised: d.IsSupervised,
 			IsLostMode: d.IsLostMode, BatteryLevel: d.BatteryLevel,
-			CustodianName: d.CustodianName, CategoryName: d.CategoryName,
-			CategoryID: d.CategoryID, CustodianID: d.CustodianID, AssetStatus: d.AssetStatus,
+			CustodianName: d.CustodianName, CurrentHolderName: d.CurrentHolderName,
+			CategoryName: d.CategoryName,
+			CategoryID:   d.CategoryID, CustodianID: d.CustodianID, AssetStatus: d.AssetStatus,
 		})
 	}
 	writeJSON(w, map[string]interface{}{"devices": rows, "total": len(rows)})

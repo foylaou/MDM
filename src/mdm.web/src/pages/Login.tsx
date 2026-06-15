@@ -1,8 +1,8 @@
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../stores/authStore";
 import { useTranslation } from "react-i18next";
-import { Lock, User, UserPlus } from "lucide-react";
+import { Lock, User, UserPlus, LogIn } from "lucide-react";
 import apiClient from "../lib/apiClient";
 
 type Mode = "login" | "register";
@@ -17,8 +17,18 @@ export function Login() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  const [ssoEnabled, setSSOEnabled] = useState(false);
   const { login } = useAuthStore();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    apiClient.get("/api/auth/sso/status").then(({ data }) => setSSOEnabled(!!data.enabled)).catch(() => {});
+    // Handle SSO error redirected back from backend
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("sso_error") === "inactive") {
+      setError("帳號尚未啟用，請聯絡管理員");
+    }
+  }, []);
 
   const reset = () => {
     setUsername(""); setPassword(""); setDisplayName(""); setConfirmPassword("");
@@ -90,6 +100,17 @@ export function Login() {
                 {loading && <span className="loading loading-spinner loading-sm"></span>}
                 {loading ? t("login.submitting") : t("login.submit")}
               </button>
+
+              {ssoEnabled && (
+                <>
+                  <div className="divider text-xs text-base-content/40">或</div>
+                  <a href="/api/auth/sso" className="btn btn-outline w-full gap-2">
+                    <LogIn size={16} />
+                    SSO 登入
+                  </a>
+                </>
+              )}
+
               <div className="text-center">
                 <button type="button" onClick={() => { setMode("register"); reset(); }} className="btn btn-ghost btn-sm gap-1">
                   <UserPlus size={14} /> 註冊新帳號

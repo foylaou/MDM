@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Mail, Inbox, Save, Send, PlugZap } from "lucide-react";
+import { Mail, Inbox, Save, Send, PlugZap, KeyRound, ExternalLink } from "lucide-react";
 import apiClient from "../lib/apiClient";
 import { useDialog } from "../components/DialogProvider";
 
@@ -49,6 +49,24 @@ const EMPTY: MailSettings = {
   incoming_mailbox: "INBOX",
 };
 
+interface SSOSettingsForm {
+  enabled: boolean;
+  issuer_url: string;
+  client_id: string;
+  client_secret: string;
+  redirect_url: string;
+  has_client_secret?: boolean;
+  updated_at?: string;
+}
+
+const SSO_EMPTY: SSOSettingsForm = {
+  enabled: false,
+  issuer_url: "",
+  client_id: "",
+  client_secret: "",
+  redirect_url: "",
+};
+
 export function Settings() {
   const { t } = useTranslation();
   const dialog = useDialog();
@@ -60,14 +78,24 @@ export function Settings() {
   const [testingIncoming, setTestingIncoming] = useState(false);
   const [testTo, setTestTo] = useState("");
 
+  const [ssoForm, setSSOForm] = useState<SSOSettingsForm>(SSO_EMPTY);
+  const [ssoSaving, setSSOSaving] = useState(false);
+
   const load = async () => {
     setLoading(true);
     try {
-      const { data } = await apiClient.get<MailSettings>("/api/settings/mail");
+      const [mailResp, ssoResp] = await Promise.all([
+        apiClient.get<MailSettings>("/api/settings/mail"),
+        apiClient.get<SSOSettingsForm>("/api/settings/sso").catch(() => ({ data: SSO_EMPTY })),
+      ]);
       setForm({
-        ...data,
-        smtp_password: data.has_smtp_password ? PASSWORD_PLACEHOLDER : "",
-        incoming_password: data.has_incoming_password ? PASSWORD_PLACEHOLDER : "",
+        ...mailResp.data,
+        smtp_password: mailResp.data.has_smtp_password ? PASSWORD_PLACEHOLDER : "",
+        incoming_password: mailResp.data.has_incoming_password ? PASSWORD_PLACEHOLDER : "",
+      });
+      setSSOForm({
+        ...ssoResp.data,
+        client_secret: ssoResp.data.has_client_secret ? PASSWORD_PLACEHOLDER : "",
       });
     } catch (err: any) {
       await dialog.error(t("settings.loadFailed") + ": " + (err?.response?.data?.error || err?.message || ""));
@@ -76,6 +104,22 @@ export function Settings() {
     }
   };
   useEffect(() => { load(); }, []);
+
+  const ssoUpdate = <K extends keyof SSOSettingsForm>(key: K, value: SSOSettingsForm[K]) =>
+    setSSOForm((prev) => ({ ...prev, [key]: value }));
+
+  const saveSSOSettings = async () => {
+    setSSOSaving(true);
+    try {
+      await apiClient.put("/api/settings/sso", ssoForm);
+      await dialog.alert("SSO 設定已儲存");
+      load();
+    } catch (err: any) {
+      await dialog.error("儲存失敗: " + (err?.response?.data?.error || err?.message || ""));
+    } finally {
+      setSSOSaving(false);
+    }
+  };
 
   const update = <K extends keyof MailSettings>(key: K, value: MailSettings[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -296,6 +340,86 @@ export function Settings() {
             : <Save size={14} />}
           {t("common.save")}
         </button>
+      </div>
+
+      {/* SSO / OIDC */}
+      <div className="card bg-base-100 shadow">
+        <div className="card-body">
+          <div className="flex items-center gap-2">
+            <KeyRound size={18} className="text-primary" />
+            <h2 className="card-title text-lg">SSO 單一登入（OIDC）</h2>
+            <label className="ml-auto label cursor-pointer gap-2">
+              <span className="label-text">啟用</span>
+              <input
+                type="checkbox"
+                className="toggle toggle-primary"
+                checked={ssoForm.enabled}
+                onChange={(e) => ssoUpdate("enabled", e.target.checked)}
+              />
+            </label>
+          </div>
+
+          <p className="text-sm text-base-content/60">
+            支援任何相容 OpenID Connect 的 IdP（Google、Azure AD、Keycloak、Okta 等）。
+            填入後，登入頁面會出現「SSO 登入」按鈕；email 相同的既有帳號會自動綁定。
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+            <label className="form-control md:col-span-2">
+              <span className="label label-text">Issuer URL</span>
+              <input className="input input-bordered input-sm" value={ssoForm.issuer_url}
+                onChange={(e) => ssoUpdate("issuer_url", e.target.value)}
+                placeholder="https://accounts.google.com" />
+              <span className="label label-text-alt text-base-content/50">
+                IdP 的根網址，系統會自動從 /.well-known/openid-configuration 取得端點
+              </span>
+            </label>
+            <label className="form-control">
+              <span className="label label-text">Client ID</span>
+              <input className="input input-bordered input-sm" value={ssoForm.client_id}
+                onChange={(e) => ssoUpdate("client_id", e.target.value)}
+                placeholder="your-client-id" autoComplete="off" />
+            </label>
+            <label className="form-control">
+              <span className="label label-text">Client Secret</span>
+              <input className="input input-bordered input-sm" type="password" value={ssoForm.client_secret}
+                onChange={(e) => ssoUpdate("client_secret", e.target.value)}
+                autoComplete="new-password"
+                placeholder={ssoForm.has_client_secret ? "已設定（留空保留原值）" : ""} />
+            </label>
+            <label className="form-control md:col-span-2">
+              <span className="label label-text">Redirect URL（回呼網址）</span>
+              <div className="flex gap-2">
+                <input className="input input-bordered input-sm flex-1" value={ssoForm.redirect_url}
+                  onChange={(e) => ssoUpdate("redirect_url", e.target.value)}
+                  placeholder="https://mdm.example.com/api/auth/sso/callback" />
+                {ssoForm.redirect_url && (
+                  <a href={ssoForm.redirect_url} target="_blank" rel="noreferrer"
+                    className="btn btn-ghost btn-sm" title="在 IdP 設定此回呼網址">
+                    <ExternalLink size={14} />
+                  </a>
+                )}
+              </div>
+              <span className="label label-text-alt text-base-content/50">
+                需在 IdP 的 Allowed Redirect URIs 填入此網址
+              </span>
+            </label>
+          </div>
+
+          <div className="flex justify-between items-center mt-2">
+            {ssoForm.updated_at && ssoForm.updated_at !== "0001-01-01T00:00:00Z" && (
+              <span className="text-xs text-base-content/50">
+                最後更新：{new Date(ssoForm.updated_at).toLocaleString()}
+              </span>
+            )}
+            <button onClick={saveSSOSettings} disabled={ssoSaving} className="btn btn-primary btn-sm gap-1 ml-auto">
+              {ssoSaving
+                ? <span className="loading loading-spinner loading-xs"></span>
+                : <Save size={14} />}
+              儲存 SSO 設定
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

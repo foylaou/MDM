@@ -20,6 +20,13 @@ type Config struct {
 	WebSocketURL string
 	SMTP         SMTPConfig
 
+	// OIDC / SSO
+	OIDCEnabled      bool   // master switch; set OIDC_CLIENT_ID to enable
+	OIDCIssuerURL    string // e.g. https://accounts.google.com
+	OIDCClientID     string
+	OIDCClientSecret string
+	OIDCRedirectURL  string // e.g. https://mdm.example.com/api/auth/sso/callback
+
 	// Apple Business Manager API + DEP auto-assignment
 	ABMKeyPath      string        // PEM path; empty disables ABM
 	ABMClientID     string        // BUSINESSAPI.<UUID>
@@ -72,6 +79,12 @@ func Load() *Config {
 			FromName: envOr("SMTP_FROM_NAME", "MDM 管理平台"),
 			TLS:      envOr("SMTP_TLS", "true") == "true",
 		},
+
+		OIDCIssuerURL:    envOr("OIDC_ISSUER_URL", ""),
+		OIDCClientID:     envOr("OIDC_CLIENT_ID", ""),
+		OIDCClientSecret: envOr("OIDC_CLIENT_SECRET", ""),
+		OIDCRedirectURL:  envOr("OIDC_REDIRECT_URL", ""),
+		OIDCEnabled:      envOr("OIDC_CLIENT_ID", "") != "",
 
 		ABMKeyPath:      envOr("ABM_KEY_PATH", ""),
 		ABMClientID:     envOr("ABM_CLIENT_ID", ""),

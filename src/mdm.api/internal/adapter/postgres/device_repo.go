@@ -123,9 +123,11 @@ func (r *DeviceRepo) List(ctx context.Context, filter string, limit int, offset 
 
 // ListWithAssets returns devices joined with asset/category info for the frontend device list.
 func (r *DeviceRepo) ListWithAssets(ctx context.Context, filter, categoryID, custodianID, rentalStatus, viewerUserID string) ([]*domain.DeviceListItem, error) {
-	q := `SELECT d.udid, d.serial_number, d.device_name, d.model, d.os_version,
+	q := `SELECT d.udid, d.serial_number, d.device_name, COALESCE(a.asset_number,'') as asset_number,
+	             d.model, d.os_version,
 	             d.last_seen, d.enrollment_status, d.is_supervised, d.is_lost_mode, d.battery_level,
 	             COALESCE(a.custodian_name,'') as custodian_name,
+	             COALESCE(a.current_holder_name,'') as current_holder_name,
 	             COALESCE(c.name,'') as category_name,
 	             a.category_id, a.custodian_id,
 	             COALESCE(a.asset_status,'available') as asset_status,
@@ -174,9 +176,10 @@ func (r *DeviceRepo) ListWithAssets(ctx context.Context, filter, categoryID, cus
 		d := &domain.DeviceListItem{}
 		var assetStatus string
 		var isRented bool
-		if err := rows.Scan(&d.UDID, &d.SerialNumber, &d.DeviceName, &d.Model, &d.OSVersion,
+		if err := rows.Scan(&d.UDID, &d.SerialNumber, &d.DeviceName, &d.AssetNumber,
+			&d.Model, &d.OSVersion,
 			&d.LastSeen, &d.EnrollmentStatus, &d.IsSupervised, &d.IsLostMode, &d.BatteryLevel,
-			&d.CustodianName, &d.CategoryName, &d.CategoryID, &d.CustodianID,
+			&d.CustodianName, &d.CurrentHolderName, &d.CategoryName, &d.CategoryID, &d.CustodianID,
 			&assetStatus, &isRented); err != nil {
 			continue
 		}

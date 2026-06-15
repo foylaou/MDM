@@ -61,3 +61,9 @@ var Migration019SQL string
 
 //go:embed migrations/020_app_platforms.up.sql
 var Migration020SQL string
+
+//go:embed migrations/021_sso.up.sql
+var Migration021SQL string
+
+//go:embed migrations/022_sso_settings.up.sql
+var Migration022SQL string

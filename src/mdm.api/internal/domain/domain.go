@@ -9,6 +9,7 @@ type User struct {
 	Role         string // "admin", "operator", "viewer" (legacy)
 	SystemRole   string // "sys_admin", "user"
 	Email        string
+	SSOSub       string // OIDC subject identifier; empty = not linked
 	DisplayName  string
 	IsActive     bool
 	CreatedAt    time.Time
@@ -303,24 +304,36 @@ type Notification struct {
 // --- Device List View (joined query) ---
 
 type DeviceListItem struct {
-	UDID             string
-	SerialNumber     string
-	DeviceName       string
-	Model            string
-	OSVersion        string
-	LastSeen         time.Time
-	EnrollmentStatus string
-	IsSupervised     bool
-	IsLostMode       bool
-	BatteryLevel     float64
-	CustodianName    string
-	CategoryName     string
-	CategoryID       *string
-	CustodianID      *string
-	AssetStatus      string
+	UDID              string
+	SerialNumber      string
+	DeviceName        string
+	AssetNumber       string
+	Model             string
+	OSVersion         string
+	LastSeen          time.Time
+	EnrollmentStatus  string
+	IsSupervised      bool
+	IsLostMode        bool
+	BatteryLevel      float64
+	CustodianName     string
+	CurrentHolderName string
+	CategoryName      string
+	CategoryID        *string
+	CustodianID       *string
+	AssetStatus       string
 }
 
 // MailSettings is the single-row configuration for outgoing + incoming mail.
+type SSOSettings struct {
+	Enabled      bool
+	IssuerURL    string
+	ClientID     string
+	ClientSecret string
+	RedirectURL  string
+	UpdatedAt    time.Time
+	UpdatedBy    string
+}
+
 type MailSettings struct {
 	// Outgoing (SMTP)
 	SMTPEnabled  bool

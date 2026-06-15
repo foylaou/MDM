@@ -126,7 +126,8 @@ func (c *DeviceController) handleDevicesList(w http.ResponseWriter, r *http.Requ
 	rentalStatus := r.URL.Query().Get("rental_status")
 
 	var viewerUserID string
-	if claims.Role == "viewer" {
+	isSysAdmin := claims.SystemRole == "sys_admin" || claims.Role == "admin"
+	if claims.Role == "viewer" && !isSysAdmin {
 		viewerUserID = claims.UserID
 	}
 

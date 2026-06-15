@@ -156,8 +156,8 @@ func (c *SSOController) handleStart(w http.ResponseWriter, r *http.Request) {
 
 	meta, err := c.discover(s.IssuerURL)
 	if err != nil {
-		log.Printf("SSO discover: %v", err)
-		http.Error(w, "SSO not available", http.StatusServiceUnavailable)
+		log.Printf("SSO discover (issuer=%q): %v", s.IssuerURL, err)
+		http.Error(w, fmt.Sprintf("SSO discover failed (issuer=%q): %v", s.IssuerURL, err), http.StatusServiceUnavailable)
 		return
 	}
 

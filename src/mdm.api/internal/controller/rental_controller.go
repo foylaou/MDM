@@ -112,7 +112,7 @@ func (c *RentalController) handlePickableAssets(w http.ResponseWriter, r *http.R
 	for _, it := range items {
 		rows = append(rows, row{
 			AssetID: it.AssetID, AssetNumber: it.AssetNumber, Name: it.Name, Spec: it.Spec,
-			DeviceUdid: it.DeviceUdid,
+			DeviceUdid:   it.DeviceUdid,
 			SerialNumber: it.SerialNumber, Model: it.Model, OSVersion: it.OSVersion,
 			AssetStatus: it.AssetStatus, CategoryID: it.CategoryID, CategoryName: it.CategoryName,
 		})
@@ -190,10 +190,34 @@ func (c *RentalController) handleRentals(w http.ResponseWriter, r *http.Request)
 			Purpose        string   `json:"purpose"`
 			ExpectedReturn *string  `json:"expected_return"`
 			Notes          string   `json:"notes"`
+			// Category mode: multiple {category_id, quantity} lines.
+			CategoryLines []struct {
+				CategoryID string `json:"category_id"`
+				Quantity   int    `json:"quantity"`
+			} `json:"category_lines"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.BorrowerID == "" {
 			writeError(w, http.StatusBadRequest, "asset_ids and borrower_id required")
 			return
+		}
+
+		// Category mode: auto-pick available assets for each line.
+		if len(body.AssetIDs) == 0 && len(body.CategoryLines) > 0 {
+			for _, line := range body.CategoryLines {
+				if line.CategoryID == "" || line.Quantity <= 0 {
+					continue
+				}
+				ids, err := c.assetRepo.ListAvailableByCategory(r.Context(), line.CategoryID, line.Quantity)
+				if err != nil {
+					writeError(w, http.StatusInternalServerError, err.Error())
+					return
+				}
+				if len(ids) < line.Quantity {
+					writeError(w, http.StatusConflict, fmt.Sprintf("分類 %s 可用數量不足，需要 %d 筆，實際可用 %d 筆", line.CategoryID, line.Quantity, len(ids)))
+					return
+				}
+				body.AssetIDs = append(body.AssetIDs, ids...)
+			}
 		}
 
 		// Legacy: translate device_udids -> asset_ids via assets table.
@@ -528,9 +552,9 @@ func (c *RentalController) handleExport(w http.ResponseWriter, r *http.Request) 
 
 	// Group by rental_number
 	type rentalGroup struct {
-		Number    int
-		Rentals   []*domain.Rental
-		First     *domain.Rental
+		Number  int
+		Rentals []*domain.Rental
+		First   *domain.Rental
 	}
 	groupMap := map[int]*rentalGroup{}
 	for _, rl := range rentals {

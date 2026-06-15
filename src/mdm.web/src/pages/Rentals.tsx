@@ -2,11 +2,12 @@ import { useState, useEffect, useMemo } from "react";
 import { useAuthStore } from "../stores/authStore";
 import { useTranslation } from "react-i18next";
 import { AssetPicker } from "../components/AssetPicker";
+import { CategoryLeafSelect } from "../components/CategoryLeafSelect";
 import apiClient from "../lib/apiClient";
 import { useDialog } from "../components/DialogProvider";
 import {
   Check, X, RotateCcw, Play, UserPlus, Clock,
-  CheckCircle, AlertCircle, ArrowRight, FileDown, Archive,
+  CheckCircle, AlertCircle, ArrowRight, FileDown, Archive, Plus, Trash2,
 } from "lucide-react";
 import type { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 import { DataGrid } from "../components/DataGrid";
@@ -133,21 +134,26 @@ export function Rentals() {
   const dialog = useDialog();
   const [rentals, setRentals] = useState<Rental[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
+  const [categories, setCategories] = useState<{ id: string; parent_id: string | null; name: string; level: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [createTab, setCreateTab] = useState<"asset" | "category">("asset");
   const [statusFilter, setStatusFilter] = useState("");
   const [showArchived, setShowArchived] = useState(false);
 
   // Selection — by rental_number
   const [selectedNumbers, setSelectedNumbers] = useState<Set<number>>(new Set());
 
-  // Create form
-  const [selectedAssets, setSelectedAssets] = useState<string[]>([]);
+  // Create form — shared
   const [borrowerId, setBorrowerId] = useState("");
   const [purpose, setPurpose] = useState("");
   const [expectedReturn, setExpectedReturn] = useState("");
   const [notes, setNotes] = useState("");
   const [creating, setCreating] = useState(false);
+  // Asset mode
+  const [selectedAssets, setSelectedAssets] = useState<string[]>([]);
+  // Category mode — multiple lines
+  const [catLines, setCatLines] = useState<{ categoryId: string; quantity: number }[]>([{ categoryId: "", quantity: 1 }]);
 
   const groups = useMemo(() => groupByRentalNumber(rentals), [rentals]);
 
@@ -170,26 +176,50 @@ export function Rentals() {
     } catch { /* */ }
   };
 
+  const loadCategories = async () => {
+    try {
+      const { data } = await apiClient.get("/api/categories");
+      setCategories(data.categories || []);
+    } catch { /* */ }
+  };
+
   useEffect(() => { loadRentals(); }, [statusFilter, showArchived]);
-  useEffect(() => { loadUsers(); }, []);
+  useEffect(() => { loadUsers(); loadCategories(); }, []);
+
+  const resetCreateForm = () => {
+    setSelectedAssets([]);
+    setBorrowerId("");
+    setPurpose("");
+    setExpectedReturn("");
+    setNotes("");
+    setCatLines([{ categoryId: "", quantity: 1 }]);
+  };
 
   const handleCreate = async () => {
-    if (!borrowerId || selectedAssets.length === 0) return;
     setCreating(true);
     try {
-      await apiClient.post("/api/rentals", {
-        asset_ids: selectedAssets,
-        borrower_id: borrowerId,
-        purpose,
-        expected_return: expectedReturn || null,
-        notes,
-      });
+      if (createTab === "asset") {
+        if (!borrowerId || selectedAssets.length === 0) return;
+        await apiClient.post("/api/rentals", {
+          asset_ids: selectedAssets,
+          borrower_id: borrowerId,
+          purpose,
+          expected_return: expectedReturn || null,
+          notes,
+        });
+      } else {
+        const validLines = catLines.filter((l) => l.categoryId && l.quantity >= 1);
+        if (!borrowerId || validLines.length === 0) return;
+        await apiClient.post("/api/rentals", {
+          category_lines: validLines.map((l) => ({ category_id: l.categoryId, quantity: l.quantity })),
+          borrower_id: borrowerId,
+          purpose,
+          expected_return: expectedReturn || null,
+          notes,
+        });
+      }
       setShowCreate(false);
-      setSelectedAssets([]);
-      setBorrowerId("");
-      setPurpose("");
-      setExpectedReturn("");
-      setNotes("");
+      resetCreateForm();
       loadRentals();
     } catch (err: unknown) {
       const resp = (err as { response?: { data?: { error?: string; devices?: string[] } } })?.response?.data;
@@ -497,12 +527,79 @@ export function Rentals() {
       {showCreate && (
         <div className="card bg-base-100 shadow">
           <div className="card-body">
-            <h2 className="card-title text-base">新增租借申請</h2>
-            <div className="space-y-4 mt-2">
-              <div className="form-control">
-                <label className="label"><span className="label-text font-medium">選擇資產</span></label>
-                <AssetPicker selected={selectedAssets} onChange={setSelectedAssets} showFilters />
-              </div>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="card-title text-base">新增租借申請</h2>
+              <button onClick={() => { setShowCreate(false); resetCreateForm(); }} className="btn btn-ghost btn-sm btn-circle"><X size={16} /></button>
+            </div>
+
+            {/* Tabs */}
+            <div role="tablist" className="tabs tabs-bordered mb-4">
+              <button
+                role="tab"
+                className={`tab${createTab === "asset" ? " tab-active" : ""}`}
+                onClick={() => setCreateTab("asset")}
+              >
+                勾選資產租借
+              </button>
+              <button
+                role="tab"
+                className={`tab${createTab === "category" ? " tab-active" : ""}`}
+                onClick={() => setCreateTab("category")}
+              >
+                分類數量租借
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Asset mode */}
+              {createTab === "asset" && (
+                <div className="form-control">
+                  <label className="label"><span className="label-text font-medium">選擇資產</span></label>
+                  <AssetPicker selected={selectedAssets} onChange={setSelectedAssets} showFilters />
+                </div>
+              )}
+
+              {/* Category mode */}
+              {createTab === "category" && (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-[1fr_100px_32px] gap-2 text-xs text-base-content/60 px-1">
+                    <span>分類</span><span>數量</span><span />
+                  </div>
+                  {catLines.map((line, i) => (
+                    <div key={i} className="grid grid-cols-[1fr_100px_32px] gap-2 items-center">
+                      <CategoryLeafSelect
+                        categories={categories}
+                        value={line.categoryId}
+                        onChange={(id) => setCatLines((prev) => prev.map((l, idx) => idx === i ? { ...l, categoryId: id } : l))}
+                      />
+                      <input
+                        type="number"
+                        min={1}
+                        value={line.quantity}
+                        onChange={(e) => setCatLines((prev) => prev.map((l, idx) => idx === i ? { ...l, quantity: Math.max(1, Number(e.target.value)) } : l))}
+                        className="input input-bordered input-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setCatLines((prev) => prev.length === 1 ? prev : prev.filter((_, idx) => idx !== i))}
+                        className="btn btn-ghost btn-xs btn-circle text-error"
+                        disabled={catLines.length === 1}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setCatLines((prev) => [...prev, { categoryId: "", quantity: 1 }])}
+                    className="btn btn-ghost btn-xs gap-1 mt-1"
+                  >
+                    <Plus size={14} /> 新增一行
+                  </button>
+                </div>
+              )}
+
+              {/* Common fields */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="form-control">
                   <label className="label"><span className="label-text font-medium">借用人</span></label>
@@ -531,11 +628,15 @@ export function Rentals() {
                 </div>
               </div>
               <div className="flex gap-2">
-                <button onClick={handleCreate} disabled={creating || !borrowerId || selectedAssets.length === 0} className="btn btn-success btn-sm gap-1">
+                <button
+                  onClick={handleCreate}
+                  disabled={creating || !borrowerId || (createTab === "asset" ? selectedAssets.length === 0 : catLines.filter((l) => l.categoryId && l.quantity >= 1).length === 0)}
+                  className="btn btn-success btn-sm gap-1"
+                >
                   {creating && <span className="loading loading-spinner loading-xs"></span>}
                   提交申請
                 </button>
-                <button onClick={() => setShowCreate(false)} className="btn btn-ghost btn-sm">{t("common.cancel")}</button>
+                <button onClick={() => { setShowCreate(false); resetCreateForm(); }} className="btn btn-ghost btn-sm">{t("common.cancel")}</button>
               </div>
             </div>
           </div>

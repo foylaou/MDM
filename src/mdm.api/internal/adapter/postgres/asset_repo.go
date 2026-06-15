@@ -46,7 +46,8 @@ const assetSelectColumns = `a.id, a.device_udid, a.asset_number, a.name, a.spec,
     COALESCE(a.asset_status,'available') as asset_status,
     a.disposed_at, a.disposed_by, COALESCE(a.dispose_reason,'') as dispose_reason,
     COALESCE(a.transferred_to,'') as transferred_to, a.transferred_at,
-    a.current_holder_id, COALESCE(a.current_holder_name,'') as current_holder_name, a.current_holder_since`
+    a.current_holder_id, COALESCE(a.current_holder_name,'') as current_holder_name, a.current_holder_since,
+    a.is_rentable`
 
 func scanAsset(row interface {
 	Scan(dest ...interface{}) error
@@ -62,6 +63,7 @@ func scanAsset(row interface {
 		&a.DisposedAt, &a.DisposedBy, &a.DisposeReason,
 		&a.TransferredTo, &a.TransferredAt,
 		&a.CurrentHolderID, &a.CurrentHolderName, &a.CurrentHolderSince,
+		&a.IsRentable,
 	)
 	if err != nil {
 		return nil, err
@@ -118,11 +120,11 @@ func (r *AssetRepo) GetByDeviceUdid(ctx context.Context, udid string) (*domain.A
 func (r *AssetRepo) Create(ctx context.Context, asset *domain.Asset) (string, error) {
 	var id string
 	err := r.pool.QueryRow(ctx,
-		`INSERT INTO assets (device_udid, asset_number, name, spec, quantity, unit, acquired_date, unit_price, purpose, assigned_date, custodian_id, custodian_name, location, asset_category, notes, category_id)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
+		`INSERT INTO assets (device_udid, asset_number, name, spec, quantity, unit, acquired_date, unit_price, purpose, assigned_date, custodian_id, custodian_name, location, asset_category, notes, category_id, is_rentable)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`,
 		asset.DeviceUdid, asset.AssetNumber, asset.Name, asset.Spec, asset.Quantity, asset.Unit,
 		asset.AcquiredDate, asset.UnitPrice, asset.Purpose, asset.AssignedDate,
-		asset.CustodianID, asset.CustodianName, asset.Location, asset.AssetCategory, asset.Notes, asset.CategoryID,
+		asset.CustodianID, asset.CustodianName, asset.Location, asset.AssetCategory, asset.Notes, asset.CategoryID, asset.IsRentable,
 	).Scan(&id)
 	return id, err
 }
@@ -133,7 +135,7 @@ func (r *AssetRepo) Create(ctx context.Context, asset *domain.Asset) (string, er
 func (r *AssetRepo) Update(ctx context.Context, id string, fields map[string]interface{}) error {
 	allowed := []string{"device_udid", "asset_number", "name", "spec", "quantity", "unit",
 		"acquired_date", "unit_price", "purpose",
-		"location", "asset_category", "notes", "category_id", "asset_status",
+		"location", "asset_category", "notes", "category_id", "asset_status", "is_rentable",
 		"dispose_reason", "transferred_to"}
 	sets := []string{}
 	args := []interface{}{}
@@ -188,6 +190,7 @@ func (r *AssetRepo) ListRentalPickable(ctx context.Context) ([]*RentalPickableAs
 	      FROM assets a
 	      LEFT JOIN devices d ON a.device_udid = d.udid
 	      LEFT JOIN categories c ON a.category_id = c.id
+	      WHERE a.is_rentable = TRUE
 	      ORDER BY a.name, a.asset_number`
 	rows, err := r.pool.Query(ctx, q)
 	if err != nil {
@@ -211,6 +214,34 @@ func (r *AssetRepo) ListRentalPickable(ctx context.Context) ([]*RentalPickableAs
 		out = append(out, it)
 	}
 	return out, nil
+}
+
+// ListAvailableByCategory returns up to `limit` asset IDs that are rentable,
+// available (status=available, not rented), and belong to the given category.
+func (r *AssetRepo) ListAvailableByCategory(ctx context.Context, categoryID string, limit int) ([]string, error) {
+	q := `SELECT a.id FROM assets a
+	      WHERE a.is_rentable = TRUE
+	        AND a.category_id = $1
+	        AND COALESCE(a.asset_status,'available') = 'available'
+	        AND NOT EXISTS(
+	            SELECT 1 FROM rentals rl
+	            WHERE rl.asset_id = a.id AND rl.status IN ('pending','approved','active')
+	        )
+	      ORDER BY a.asset_number
+	      LIMIT $2`
+	rows, err := r.pool.Query(ctx, q, categoryID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err == nil {
+			ids = append(ids, id)
+		}
+	}
+	return ids, nil
 }
 
 // CheckAssetAvailability mirrors rental.CheckDeviceAvailability but uses asset_id,

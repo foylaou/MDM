@@ -67,3 +67,6 @@ var Migration021SQL string
 
 //go:embed migrations/022_sso_settings.up.sql
 var Migration022SQL string
+
+//go:embed migrations/023_asset_is_rentable.up.sql
+var Migration023SQL string

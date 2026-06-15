@@ -275,6 +275,7 @@ export function Devices() {
           rowData={devices}
           columnDefs={columnDefs}
           loading={loading}
+          rowHeight={60}
           rowSelection={rowSelection}
           getRowId={(p) => p.data.udid}
           overlayNoRowsTemplate={`<span class="opacity-50">${t("devices.noDevices")}</span>`}

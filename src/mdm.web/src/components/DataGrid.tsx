@@ -16,11 +16,14 @@ interface DataGridProps<T> extends Omit<AgGridReactProps<T>, "theme"> {
   height?: string | number;
   /** Disable the sidebar tool panels (columns/filters). */
   hideSidebar?: boolean;
+  /** Override the default row height (default: 36). */
+  rowHeight?: number;
 }
 
 export function DataGrid<T>({
   height = "calc(100vh - 16rem)",
   hideSidebar,
+  rowHeight = 36,
   defaultColDef,
   rowSelection,
   pagination = true,
@@ -52,9 +55,9 @@ export function DataGrid<T>({
         fontFamily: "inherit",
         borderRadius: 6,
         headerHeight: 38,
-        rowHeight: 36,
+        rowHeight,
       }),
-    [isDark],
+    [isDark, rowHeight],
   );
 
   const mergedDefaultColDef: ColDef = useMemo(

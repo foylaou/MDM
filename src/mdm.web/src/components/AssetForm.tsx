@@ -30,6 +30,7 @@ interface Asset {
   category_id: string | null;
   category_name: string;
   asset_status: string;
+  is_rentable: boolean;
 }
 
 const emptyAsset: Omit<Asset, "id"> = {
@@ -41,6 +42,7 @@ const emptyAsset: Omit<Asset, "id"> = {
   location: "", asset_category: "", notes: "",
   category_id: null, category_name: "",
   asset_status: "available",
+  is_rentable: true,
 };
 
 const ASSET_STATUS_OPTIONS = [
@@ -465,6 +467,20 @@ function AssetEditForm({
               <option key={s.value} value={s.value}>{s.label}</option>
             ))}
           </select>
+        </div>
+
+        {/* Is rentable toggle */}
+        <div className="form-control">
+          <label className="label py-1"><span className="label-text text-xs">是否可租借</span></label>
+          <label className="flex items-center gap-2 cursor-pointer h-8">
+            <input
+              type="checkbox"
+              className="toggle toggle-success toggle-sm"
+              checked={!!form.is_rentable}
+              onChange={(e) => updateField("is_rentable", e.target.checked)}
+            />
+            <span className="text-sm">{form.is_rentable ? "可租借" : "不可租借"}</span>
+          </label>
         </div>
         {/* Category — cascading picker */}
         <div className="form-control">

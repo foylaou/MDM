@@ -32,6 +32,7 @@ interface AssetRow {
   device_name: string;
   device_serial: string;
   notes: string;
+  is_rentable: boolean;
 }
 
 interface CategoryOption { id: string; name: string; level: number; }
@@ -205,6 +206,15 @@ export function AssetList() {
         const st = ASSET_STATUS_CONFIG[p.value as string] || ASSET_STATUS_CONFIG.available;
         return <span className={`badge badge-sm ${st.badge}`}>{st.label}</span>;
       },
+    },
+    {
+      headerName: "可租借",
+      field: "is_rentable",
+      width: 90,
+      cellRenderer: (p: ICellRendererParams<AssetRow>) =>
+        p.data?.is_rentable
+          ? <span className="badge badge-success badge-sm">是</span>
+          : <span className="badge badge-ghost badge-sm">否</span>,
     },
     {
       headerName: "關聯裝置",

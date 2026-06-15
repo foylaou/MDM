@@ -52,7 +52,8 @@ func assetToRow(a *domain.Asset) map[string]interface{} {
 		"unit_price": a.UnitPrice, "purpose": a.Purpose,
 		"custodian_id": a.CustodianID, "custodian_name": a.CustodianName,
 		"location": a.Location, "asset_category": a.AssetCategory, "notes": a.Notes,
-		"created_at": a.CreatedAt.Format(time.RFC3339), "updated_at": a.UpdatedAt.Format(time.RFC3339),
+		"is_rentable": a.IsRentable,
+		"created_at":  a.CreatedAt.Format(time.RFC3339), "updated_at": a.UpdatedAt.Format(time.RFC3339),
 		"device_name": a.DeviceName, "device_serial": a.DeviceSerial,
 		"category_id": a.CategoryID, "category_name": a.CategoryName, "asset_status": a.AssetStatus,
 		"dispose_reason": a.DisposeReason, "transferred_to": a.TransferredTo,
@@ -136,6 +137,7 @@ func (c *AssetController) handleAssets(w http.ResponseWriter, r *http.Request) {
 			AssetCategory string  `json:"asset_category"`
 			Notes         string  `json:"notes"`
 			CategoryID    *string `json:"category_id"`
+			IsRentable    bool    `json:"is_rentable"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -148,7 +150,7 @@ func (c *AssetController) handleAssets(w http.ResponseWriter, r *http.Request) {
 			Name: body.Name, Spec: body.Spec, Quantity: body.Quantity, Unit: body.Unit,
 			UnitPrice: body.UnitPrice, Purpose: body.Purpose,
 			Location: body.Location, AssetCategory: body.AssetCategory, Notes: body.Notes,
-			CategoryID: body.CategoryID,
+			CategoryID: body.CategoryID, IsRentable: body.IsRentable,
 		}
 		id, err := c.assetRepo.Create(r.Context(), asset)
 		if err != nil {
@@ -268,10 +270,10 @@ func (c *AssetController) handleLifecycle(w http.ResponseWriter, r *http.Request
 	w.Header().Set("Content-Type", "application/json")
 
 	var body struct {
-		Action        string `json:"action"`         // "dispose" or "transfer"
+		Action        string `json:"action"` // "dispose" or "transfer"
 		AssetID       string `json:"asset_id"`
-		Reason        string `json:"reason"`          // for dispose
-		TransferredTo string `json:"transferred_to"`  // for transfer
+		Reason        string `json:"reason"`         // for dispose
+		TransferredTo string `json:"transferred_to"` // for transfer
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.AssetID == "" || body.Action == "" {
 		writeError(w, http.StatusBadRequest, "action and asset_id required")
@@ -371,10 +373,10 @@ func (c *AssetController) handleCustody(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var (
-		toID       *string
-		toName     string
-		newAssign  *time.Time
-		auditActn  string
+		toID      *string
+		toName    string
+		newAssign *time.Time
+		auditActn string
 	)
 
 	switch body.Action {
@@ -757,8 +759,8 @@ func (c *AssetController) handleImport(w http.ResponseWriter, r *http.Request) {
 		c.auditRepo.Create(r.Context(), &domain.AuditLog{
 			UserID: claims.UserID, Username: claims.Username,
 			Action: "asset_import", Target: id,
-			Detail: fmt.Sprintf("imported: %s / %s", assetNum, name),
-			Module: "asset",
+			Detail:    fmt.Sprintf("imported: %s / %s", assetNum, name),
+			Module:    "asset",
 			IPAddress: clientIP(r), UserAgent: r.UserAgent(),
 		})
 	}

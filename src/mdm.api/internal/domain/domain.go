@@ -112,6 +112,7 @@ type Asset struct {
 	Notes         string
 	CategoryID    *string
 	AssetStatus   string
+	IsRentable    bool
 	// Current holder (temporary holder via rental; custodian stays fixed)
 	CurrentHolderID    *string
 	CurrentHolderName  string

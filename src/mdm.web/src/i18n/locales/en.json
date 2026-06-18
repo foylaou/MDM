@@ -16,6 +16,7 @@
     "apps": "Apps",
     "profiles": "Profiles",
     "events": "Events",
+    "depTemplates": "MDM Config Templates",
     "group_rental": "Rental System",
     "rentals": "Rentals",
     "notifications": "Notifications",

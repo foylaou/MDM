@@ -24,6 +24,7 @@ import { Inventory } from "./pages/Inventory";
 import { AssetList } from "./pages/AssetList";
 import { Notifications } from "./pages/Notifications";
 import { Settings } from "./pages/Settings";
+import { DEPTemplates } from "./pages/DEPTemplates";
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 
@@ -104,6 +105,7 @@ function AppRoutes() {
         <Route path="/mdm/apps" element={<ModuleGuard module="mdm" minLevel="operator"><Apps /></ModuleGuard>} />
         <Route path="/mdm/profiles" element={<ModuleGuard module="mdm" minLevel="operator"><Profiles /></ModuleGuard>} />
         <Route path="/mdm/events" element={<ModuleGuard module="mdm"><Events /></ModuleGuard>} />
+        <Route path="/mdm/dep-templates" element={<ModuleGuard module="mdm" minLevel="operator"><DEPTemplates /></ModuleGuard>} />
 
         {/* Rental module */}
         <Route path="/rental/list" element={<ModuleGuard module="rental" minLevel="requester"><Rentals /></ModuleGuard>} />

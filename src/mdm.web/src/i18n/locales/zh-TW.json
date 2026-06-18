@@ -16,6 +16,7 @@
     "apps": "App 管理",
     "profiles": "描述檔",
     "events": "即時事件",
+    "depTemplates": "MDM配置模版",
     "group_rental": "租借系統",
     "rentals": "租借管理",
     "notifications": "通知記錄",

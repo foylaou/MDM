@@ -8,7 +8,7 @@ import { ChangePassword } from "./ChangePassword";
 import { ViewerOnboarding } from "./ViewerOnboarding";
 import {
   LayoutDashboard, Tablet, Terminal, Radio, Users, ClipboardList, FileText, Package, Repeat, FolderTree,
-  LogOut, Menu, Moon, Sun, Globe, Bell, Wifi, WifiOff, Lock, Briefcase, BellRing, ClipboardCheck, Settings,
+  LogOut, Menu, Moon, Sun, Globe, Bell, Wifi, WifiOff, Lock, Briefcase, BellRing, ClipboardCheck, Settings, ScrollText,
 } from "lucide-react";
 import { useState, useEffect, type ReactNode } from "react";
 
@@ -53,6 +53,7 @@ const navGroups: NavGroup[] = [
       { path: "/mdm/apps", labelKey: "nav.apps", icon: <Package size={20} />, module: "mdm", minLevel: "operator" },
       { path: "/mdm/profiles", labelKey: "nav.profiles", icon: <FileText size={20} />, module: "mdm", minLevel: "operator" },
       { path: "/mdm/events", labelKey: "nav.events", icon: <Radio size={20} />, module: "mdm" },
+      { path: "/mdm/dep-templates", labelKey: "nav.depTemplates", icon: <ScrollText size={20} />, module: "mdm", minLevel: "operator" },
     ],
   },
   {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuthStore } from "../stores/authStore";
 import { useDeviceStore, type DeviceRow } from "../stores/deviceStore";
 import { useTranslation } from "react-i18next";
@@ -120,7 +120,7 @@ export function Devices() {
     }
   };
 
-  const handleDEPRetry = async (serial: string) => {
+  const handleDEPRetry = useCallback(async (serial: string) => {
     try {
       const { data } = await apiClient.post("/api/dep/retry", { serial });
       const lines: string[] = [
@@ -134,7 +134,7 @@ export function Devices() {
       const resp = (err as { response?: { data?: { error?: string } } })?.response?.data;
       await dialog.error("強制重試失敗：" + (resp?.error || (err instanceof Error ? err.message : "(未知)")));
     }
-  };
+  }, [dialog]);
 
   // Build category options with indentation
   const categoryOptions = categories.map((c) => ({

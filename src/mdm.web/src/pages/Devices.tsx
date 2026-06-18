@@ -223,7 +223,7 @@ export function Devices() {
           </button>
         );
       },
-    }] as typeof columnDefs : []),
+    }] as ColDef<DeviceRow>[] : []),
   ], [t, user, handleDEPRetry]);
 
   return (

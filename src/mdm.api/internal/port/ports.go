@@ -199,11 +199,21 @@ type DEPAssignmentRepo interface {
 	Get(ctx context.Context, serial string) (*domain.DEPAssignment, error) // returns nil, nil when absent
 	Upsert(ctx context.Context, a *domain.DEPAssignment) error
 	ListSerials(ctx context.Context) (map[string]bool, error) // set of all known serials, for batch diff
+	Delete(ctx context.Context, serial string) error          // force-retry: removes row so scheduler picks it up again
+}
+
+// DEPRunResult is returned by RunOnce to report what happened in one cycle.
+type DEPRunResult struct {
+	Applied      int // profiles successfully assigned
+	Skipped      int // template missing or unknown family
+	Errors       int // Apple / DB errors
+	AlreadyKnown int // already in dep_assignments, skipped without touching Apple
+	ABMTotal     int // total devices seen in ABM
 }
 
 // DEPSchedulerRunner is the slice of the DEP scheduler the HTTP layer needs
 // to expose a "run now" button. Passed as nil when the scheduler isn't
 // enabled (DEP_AUTO_ASSIGN=false), in which case the endpoint should 503.
 type DEPSchedulerRunner interface {
-	RunOnce(ctx context.Context)
+	RunOnce(ctx context.Context) DEPRunResult
 }

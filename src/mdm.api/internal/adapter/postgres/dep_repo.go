@@ -47,6 +47,13 @@ func (r *DEPAssignmentRepo) Upsert(ctx context.Context, a *domain.DEPAssignment)
 	return err
 }
 
+// Delete removes a serial from dep_assignments so the scheduler will re-apply
+// the profile on the next cycle (force-retry).
+func (r *DEPAssignmentRepo) Delete(ctx context.Context, serial string) error {
+	_, err := r.pool.Exec(ctx, `DELETE FROM dep_assignments WHERE serial_number=$1`, serial)
+	return err
+}
+
 // ListSerials returns a set of all serials we've already assigned. Used by the
 // scheduler to compute the diff against ABM in a single pass.
 func (r *DEPAssignmentRepo) ListSerials(ctx context.Context) (map[string]bool, error) {

@@ -17,8 +17,8 @@ importers:
   .:
     dependencies:
       '@ag-grid-community/locale':
-        specifier: ^35.3.0
-        version: 35.3.0
+        specifier: ^35.3.1
+        version: 35.3.1
       '@bufbuild/protobuf':
         specifier: 1.10.0
         version: 1.10.0
@@ -29,20 +29,20 @@ importers:
         specifier: 1.6.1
         version: 1.6.1(@bufbuild/protobuf@1.10.0)(@connectrpc/connect@1.6.1(@bufbuild/protobuf@1.10.0))
       ag-charts-enterprise:
-        specifier: 13.2.1
-        version: 13.2.1
+        specifier: 13.3.1
+        version: 13.3.1
       ag-grid-enterprise:
-        specifier: ^35.2.1
-        version: 35.2.1
+        specifier: ^35.3.1
+        version: 35.3.1
       ag-grid-react:
-        specifier: ^35.2.1
-        version: 35.2.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        specifier: ^35.3.1
+        version: 35.3.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       axios:
-        specifier: 1.16.0
-        version: 1.16.0
+        specifier: 1.18.0
+        version: 1.18.0
       daisyui:
-        specifier: ^5.5.19
-        version: 5.5.19
+        specifier: ^5.5.23
+        version: 5.5.23
       driver.js:
         specifier: ^1.4.0
         version: 1.4.0
@@ -53,23 +53,23 @@ importers:
         specifier: ^25.8.18
         version: 25.10.4(typescript@5.9.3)
       lucide-react:
-        specifier: ^0.577.0
-        version: 0.577.0(react@19.2.4)
+        specifier: ^1.20.0
+        version: 1.20.0(react@19.2.7)
       react:
-        specifier: ^19.2.0
-        version: 19.2.4
+        specifier: ^19.2.7
+        version: 19.2.7
       react-dom:
-        specifier: ^19.2.0
-        version: 19.2.4(react@19.2.4)
+        specifier: ^19.2.7
+        version: 19.2.7(react@19.2.7)
       react-i18next:
-        specifier: ^16.5.8
-        version: 16.6.1(i18next@25.10.4(typescript@5.9.3))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3)
+        specifier: ^17.0.8
+        version: 17.0.8(i18next@25.10.4(typescript@5.9.3))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@5.9.3)
       react-router-dom:
-        specifier: ^7.13.0
-        version: 7.13.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        specifier: ^7.18.0
+        version: 7.18.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       zustand:
-        specifier: ^5.0.12
-        version: 5.0.12(@types/react@19.2.14)(react@19.2.4)(use-sync-external-store@1.6.0(react@19.2.4))
+        specifier: ^5.0.14
+        version: 5.0.14(@types/react@19.2.14)(react@19.2.7)(use-sync-external-store@1.6.0(react@19.2.7))
     devDependencies:
       '@eslint/js':
         specifier: ^9.39.1
@@ -119,8 +119,8 @@ importers:
 
 packages:
 
-  '@ag-grid-community/locale@35.3.0':
-    resolution: {integrity: sha512-PM1JLyvX3gdAYOKFXfsJODY1nf+AN/uEfGnNbSMgfA5QVkWY9ImdZln+E2odpfOckt2j+N/KQDxaNtFgZ0GrgQ==}
+  '@ag-grid-community/locale@35.3.1':
+    resolution: {integrity: sha512-h6mqWmIRpRZXQcMFqbq71SKm5XXyqnrJOQV9FB7c/7+pnjbbDhoz1UlI94OgENZM/r1Un6Za01YoIOIQEDBV7A==}
 
   '@babel/code-frame@7.29.0':
     resolution: {integrity: sha512-9NhCeYjq9+3uxgdtp20LSiJXJvN0FeCtNGpJxuMFZ1Kv3cWUNb6DOhJwUvcVCzKGR66cw4njwM6hrJLqgOwbcw==}
@@ -772,32 +772,36 @@ packages:
     engines: {node: '>=0.4.0'}
     hasBin: true
 
-  ag-charts-community@13.2.1:
-    resolution: {integrity: sha512-A+DCiesRp6WQ5R5e3x9bLh50IWCachVF6gkz6Dz4icMcq6WL5JNKL+xZEzrKYl+kuD8Y8728xmVm/H53o9Nayw==}
+  ag-charts-community@13.3.1:
+    resolution: {integrity: sha512-xRwyuP4xcMoyzaa27fccUhKqGyiWp/0h6vq0ZBuAtj2k0OC5UbV6IQUW6/0AgmLIQ4/K9QlRWFOe3sL/x5MHow==}
 
-  ag-charts-core@13.2.1:
-    resolution: {integrity: sha512-Y7rk3kF+fA6bUMjU+vIzG5rRBd+8EKjyIjzNR2uV1+HyrlnOn6b7Eb9HPkDUoosWHhz+UNCOW/lYDzPP6mivHQ==}
+  ag-charts-core@13.3.1:
+    resolution: {integrity: sha512-oDnK07/S6Z10EwIBxhC4tMDwdf2ck5MMcuSB/h+0/Q2XcL2l3S4jmlq3iKI7Kp9sh0H5JYDDc2sAdkUN87W8RA==}
 
-  ag-charts-enterprise@13.2.1:
-    resolution: {integrity: sha512-QiNuNUu3o5qWUz9cPLuKr9r9k2YsO8Nwp4qJGR0s76WT6AeCmqKa12cSJrvIpwvPdjZ3PVlwsMA8s8EZ4dqrXA==}
+  ag-charts-enterprise@13.3.1:
+    resolution: {integrity: sha512-Y/RYwg38rLflcMJpERIRvUW5zL02HUoRXBv3j4UdnOjiEb4mPQTXU7chTfYf3+vqtUsMjFGxyGh4nPM7shwM1g==}
 
-  ag-charts-locale@13.2.1:
-    resolution: {integrity: sha512-lwwV/l/O187R4DYUfjm6p8LijITe46IlDz8nOxNQNJAOpkzs+cWmjSxfNiM1BMVCWTcMdah/AKN+6iihbDa8IA==}
+  ag-charts-locale@13.3.1:
+    resolution: {integrity: sha512-jF7iXI3PBFq/LFgBKwt72CykDBWcl3HYgP7B/hSJGsFdK+yuUTPrP67dA/wghgC6sg+Qw2U2GeykhZkG0yH8ww==}
 
-  ag-charts-types@13.2.1:
-    resolution: {integrity: sha512-r7veb3QqJtIKlXmeUsLR4/oDPwmHxFI2tmbZra/203mdaz3uwQUrrgYNg628nrK+7L2YxXnwGc6L05tWjLLjNQ==}
+  ag-charts-types@13.3.1:
+    resolution: {integrity: sha512-m37eUe4g//swvGh8PWMlYQH3gknjSsPeW4sQwBhM3/auGAHmN0wvxEWlrdAn98pBPg4HoKbtOy+yf7gPCYsnvQ==}
 
-  ag-grid-community@35.2.1:
-    resolution: {integrity: sha512-ycmGI+1EbUT7i3eg/Kgi1owwnkdHXRufo10Xm6cfSsVPM3TMpvlbLgi28KIPt9DGHZWHq9fOBn7nxMNdv1Yaow==}
+  ag-grid-community@35.3.1:
+    resolution: {integrity: sha512-Wmkd/xYTCbAApcZZO74nBggZCnd/oX753NY3MJ4zYARVpfBHRWWhIBJ2sFTFKbDWwHZOWsx3YT9+kkyeuyLKlw==}
 
-  ag-grid-enterprise@35.2.1:
-    resolution: {integrity: sha512-nLl06cc7/THzf7mGZt7PotdeaBN74X3K9g2looyvJEymrOOJfjrLePrV4aNNhz/WZnATkbyblm5DM/qv3BeHKA==}
+  ag-grid-enterprise@35.3.1:
+    resolution: {integrity: sha512-AdxpzZVn4tOg/eAFm+KDfvQE2/KX1wNjVMMHZFzKr528V2OaQYx8LWv3Ly3jlWbF8Pxsfe7ViacH0gnsjrkbyQ==}
 
-  ag-grid-react@35.2.1:
-    resolution: {integrity: sha512-UzdU15R6fyGJB+lBKEC458xacGoZged3Ra6Plqa7LvrJ/Mg0tWn1NH01UnuKyGEKPWMEAGvdXruOtOUywsPElA==}
+  ag-grid-react@35.3.1:
+    resolution: {integrity: sha512-M3ljCQyGL+qzoyPN0BYrn4eAlgZr6Ailcjd8+a7OcneSiVsMNSJb/gTkIMUwmYivkPLIA8EEJ4hTxxKSaya6mQ==}
     peerDependencies:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
       react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
+  agent-base@6.0.2:
+    resolution: {integrity: sha512-RZNwNclF7+MS/8bDg70amg32dyeZGZxiDuQmZxKLAlQjr3jGyLx+4Kkk58UO7D2QdgFIQCovuSuZESne6RG6XQ==}
+    engines: {node: '>= 6.0.0'}
 
   ajv@6.14.0:
     resolution: {integrity: sha512-IWrosm/yrn43eiKqkfkHis7QioDleaXQHdDVPKg0FSwwd/DuvyX79TZnFOnYpB7dcsFAMmtFztZuXPDvSePkFw==}
@@ -812,8 +816,8 @@ packages:
   asynckit@0.4.0:
     resolution: {integrity: sha512-Oei9OH4tRh0YqU3GxhX79dM/mwVgvbZJaSNaRk+bshkj0S5cfHcgYakreBjrHwatXKbz+IoIdYLxrKim2MjW0Q==}
 
-  axios@1.16.0:
-    resolution: {integrity: sha512-6hp5CwvTPlN2A31g5dxnwAX0orzM7pmCRDLnZSX772mv8WDqICwFjowHuPs04Mc8deIld1+ejhtaMn5vp6b+1w==}
+  axios@1.18.0:
+    resolution: {integrity: sha512-E32NzpYKp++W7XRe52rHiXV2ehxmh3wbdgO7MHeFM+vqxLBYHzt0ElkiImtOBxtOmyp0yoC8C6uESVV84Y2/hw==}
 
   balanced-match@4.0.4:
     resolution: {integrity: sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA==}
@@ -873,8 +877,8 @@ packages:
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
 
-  daisyui@5.5.19:
-    resolution: {integrity: sha512-pbFAkl1VCEh/MPCeclKL61I/MqRIFFhNU7yiXoDDRapXN4/qNCoMxeCCswyxEEhqL5eiTTfwHvucFtOE71C9sA==}
+  daisyui@5.5.23:
+    resolution: {integrity: sha512-xuheNUSL4T6ZVtWXoioqcNkjoyGX85QTDz4HTw2aBPfqk4fuMjax5HDo8qCmpV6M1YN8bGvfx5BpYCoDeRlt+A==}
 
   debug@4.4.3:
     resolution: {integrity: sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==}
@@ -1109,6 +1113,10 @@ packages:
   html-parse-stringify@3.0.1:
     resolution: {integrity: sha512-KknJ50kTInJ7qIScF3jeaFRpMpE8/lfiTdzf/twXyPBLAGrLRTmkz3AdTnKeh40X8k9L2fdYwEp/42WGXIRGcg==}
 
+  https-proxy-agent@5.0.1:
+    resolution: {integrity: sha512-dFcAjpTQFgoLMzC2VwU+C/CbS7uRL0lWmxDITmqm7C+7F0Odmj6s9l6alZc6AELXhrnggM2CeWSXHGOdX2YtwA==}
+    engines: {node: '>= 6'}
+
   i18next@25.10.4:
     resolution: {integrity: sha512-XsE/6eawy090meuFU0BTY9BtmWr1m9NSwLr0NK7/A04LA58wdAvDsi9WNOJ40Qb1E9NIPbvnVLZEN2fWDd3/3Q==}
     peerDependencies:
@@ -1269,8 +1277,8 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
-  lucide-react@0.577.0:
-    resolution: {integrity: sha512-4LjoFv2eEPwYDPg/CUdBJQSDfPyzXCRrVW1X7jrx/trgxnxkHFjnVZINbzvzxjN70dxychOfg+FTYwBiS3pQ5A==}
+  lucide-react@1.20.0:
+    resolution: {integrity: sha512-jhXLeC/7m0/tjL1nzMdKk6x256zWA6AtbhTVreHOiKPoeX2d6MK4FbyIQPpVq0E6iPWBisyy1TW+pEge/uMEuQ==}
     peerDependencies:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
@@ -1364,19 +1372,19 @@ packages:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
     engines: {node: '>=6'}
 
-  react-dom@19.2.4:
-    resolution: {integrity: sha512-AXJdLo8kgMbimY95O2aKQqsz2iWi9jMgKJhRBAxECE4IFxfcazB2LmzloIoibJI3C12IlY20+KFaLv+71bUJeQ==}
+  react-dom@19.2.7:
+    resolution: {integrity: sha512-t0BRVXvbiE/o20Hfw669rLbMCDWtYZLvmJigy2f0MxsXF+71pxhR3xOkspmsO8h3ZlNzyibAmtCa3l4lYKk6gQ==}
     peerDependencies:
-      react: ^19.2.4
+      react: ^19.2.7
 
-  react-i18next@16.6.1:
-    resolution: {integrity: sha512-izjXh+AkBLy3h3xe3sh6Gg1flhFHc3UyzsMftMKYJr2Z7WvAZQIdjjpHypctN41zFoeLdJUNGDgP1+Qich2fYg==}
+  react-i18next@17.0.8:
+    resolution: {integrity: sha512-0ooKbGLU8JXhe1zwpQUWIeXSgLPOfwJmgheWRIUpcoA0CpyabpGhayjdG+/eA5esC1AQ8h2jWpXjJfzQzeDOCw==}
     peerDependencies:
-      i18next: '>= 25.6.2'
+      i18next: '>= 26.2.0'
       react: '>= 16.8.0'
       react-dom: '*'
       react-native: '*'
-      typescript: ^5
+      typescript: ^5 || ^6
     peerDependenciesMeta:
       react-dom:
         optional: true
@@ -1392,15 +1400,15 @@ packages:
     resolution: {integrity: sha512-QgT5//D3jfjJb6Gsjxv0Slpj23ip+HtOpnNgnb2S5zU3CB26G/IDPGoy4RJB42wzFE46DRsstbW6tKHoKbhAxw==}
     engines: {node: '>=0.10.0'}
 
-  react-router-dom@7.13.1:
-    resolution: {integrity: sha512-UJnV3Rxc5TgUPJt2KJpo1Jpy0OKQr0AjgbZzBFjaPJcFOb2Y8jA5H3LT8HUJAiRLlWrEXWHbF1Z4SCZaQjWDHw==}
+  react-router-dom@7.18.0:
+    resolution: {integrity: sha512-Fi0yY6kgtKae/Th2xibdWK0KSdYZ4B53Gyf6wRtomOKWgpNm7H7+DyfDhncdz9FKbpS+1jmDhg3F4WoGJ+yFOA==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       react: '>=18'
       react-dom: '>=18'
 
-  react-router@7.13.1:
-    resolution: {integrity: sha512-td+xP4X2/6BJvZoX6xw++A2DdEi++YypA69bJUV5oVvqf6/9/9nNlD70YO1e9d3MyamJEBQFEzk6mbfDYbqrSA==}
+  react-router@7.18.0:
+    resolution: {integrity: sha512-pTTGt8J+ji1NOmYnjzT+bAJy/1zD+Jp4ziO6cL7T3ZLvXKtusO7BpFqlRXitqpcPVqllsIXFHRMt+2/k3Xn6HQ==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       react: '>=18'
@@ -1409,8 +1417,8 @@ packages:
       react-dom:
         optional: true
 
-  react@19.2.4:
-    resolution: {integrity: sha512-9nfp2hYpCwOjAN+8TZFGhtWEwgvWHXqESH8qT89AT/lWklpLON22Lc8pEtnpsZz7VmawabSU0gCjnj8aC0euHQ==}
+  react@19.2.7:
+    resolution: {integrity: sha512-HNe9WslTbXmFK8o8cmwgAeJFSBvt1bPdHCVKtaaV+WlAN36mpT4hcRpwbf3fY56ar2oIXzsBpOAiIRHAdY0OlQ==}
     engines: {node: '>=0.10.0'}
 
   resolve-from@4.0.0:
@@ -1582,8 +1590,8 @@ packages:
   zod@4.3.6:
     resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
 
-  zustand@5.0.12:
-    resolution: {integrity: sha512-i77ae3aZq4dhMlRhJVCYgMLKuSiZAaUPAct2AksxQ+gOtimhGMdXljRT21P5BNpeT4kXlLIckvkPM029OljD7g==}
+  zustand@5.0.14:
+    resolution: {integrity: sha512-/8tAspM5LMPr28b3fwLYrtdj77ECpfZviaP75CMTnwO8ISyaE4GDIG/9rDDYq/cH9D2Xw2A2RXglLInmVBQB/g==}
     engines: {node: '>=12.20.0'}
     peerDependencies:
       '@types/react': '>=18.0.0'
@@ -1602,7 +1610,7 @@ packages:
 
 snapshots:
 
-  '@ag-grid-community/locale@35.3.0': {}
+  '@ag-grid-community/locale@35.3.1': {}
 
   '@babel/code-frame@7.29.0':
     dependencies:
@@ -2182,42 +2190,48 @@ snapshots:
 
   acorn@8.16.0: {}
 
-  ag-charts-community@13.2.1:
+  ag-charts-community@13.3.1:
     dependencies:
-      ag-charts-core: 13.2.1
-      ag-charts-locale: 13.2.1
-      ag-charts-types: 13.2.1
+      ag-charts-core: 13.3.1
+      ag-charts-locale: 13.3.1
+      ag-charts-types: 13.3.1
 
-  ag-charts-core@13.2.1:
+  ag-charts-core@13.3.1:
     dependencies:
-      ag-charts-types: 13.2.1
+      ag-charts-types: 13.3.1
 
-  ag-charts-enterprise@13.2.1:
+  ag-charts-enterprise@13.3.1:
     dependencies:
-      ag-charts-community: 13.2.1
-      ag-charts-core: 13.2.1
+      ag-charts-community: 13.3.1
+      ag-charts-core: 13.3.1
 
-  ag-charts-locale@13.2.1: {}
+  ag-charts-locale@13.3.1: {}
 
-  ag-charts-types@13.2.1: {}
+  ag-charts-types@13.3.1: {}
 
-  ag-grid-community@35.2.1:
+  ag-grid-community@35.3.1:
     dependencies:
-      ag-charts-types: 13.2.1
+      ag-charts-types: 13.3.1
 
-  ag-grid-enterprise@35.2.1:
+  ag-grid-enterprise@35.3.1:
     dependencies:
-      ag-grid-community: 35.2.1
+      ag-grid-community: 35.3.1
     optionalDependencies:
-      ag-charts-community: 13.2.1
-      ag-charts-enterprise: 13.2.1
+      ag-charts-community: 13.3.1
+      ag-charts-enterprise: 13.3.1
 
-  ag-grid-react@35.2.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
+  ag-grid-react@35.3.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
     dependencies:
-      ag-grid-community: 35.2.1
+      ag-grid-community: 35.3.1
       prop-types: 15.8.1
-      react: 19.2.4
-      react-dom: 19.2.4(react@19.2.4)
+      react: 19.2.7
+      react-dom: 19.2.7(react@19.2.7)
+
+  agent-base@6.0.2:
+    dependencies:
+      debug: 4.4.3
+    transitivePeerDependencies:
+      - supports-color
 
   ajv@6.14.0:
     dependencies:
@@ -2234,13 +2248,15 @@ snapshots:
 
   asynckit@0.4.0: {}
 
-  axios@1.16.0:
+  axios@1.18.0:
     dependencies:
       follow-redirects: 1.16.0
       form-data: 4.0.5
+      https-proxy-agent: 5.0.1
       proxy-from-env: 2.1.0
     transitivePeerDependencies:
       - debug
+      - supports-color
 
   balanced-match@4.0.4: {}
 
@@ -2294,7 +2310,7 @@ snapshots:
 
   csstype@3.2.3: {}
 
-  daisyui@5.5.19: {}
+  daisyui@5.5.23: {}
 
   debug@4.4.3:
     dependencies:
@@ -2552,6 +2568,13 @@ snapshots:
     dependencies:
       void-elements: 3.1.0
 
+  https-proxy-agent@5.0.1:
+    dependencies:
+      agent-base: 6.0.2
+      debug: 4.4.3
+    transitivePeerDependencies:
+      - supports-color
+
   i18next@25.10.4(typescript@5.9.3):
     dependencies:
       '@babel/runtime': 7.29.2
@@ -2667,9 +2690,9 @@ snapshots:
     dependencies:
       yallist: 3.1.1
 
-  lucide-react@0.577.0(react@19.2.4):
+  lucide-react@1.20.0(react@19.2.7):
     dependencies:
-      react: 19.2.4
+      react: 19.2.7
 
   magic-string@0.30.21:
     dependencies:
@@ -2748,41 +2771,41 @@ snapshots:
 
   punycode@2.3.1: {}
 
-  react-dom@19.2.4(react@19.2.4):
+  react-dom@19.2.7(react@19.2.7):
     dependencies:
-      react: 19.2.4
+      react: 19.2.7
       scheduler: 0.27.0
 
-  react-i18next@16.6.1(i18next@25.10.4(typescript@5.9.3))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3):
+  react-i18next@17.0.8(i18next@25.10.4(typescript@5.9.3))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@5.9.3):
     dependencies:
       '@babel/runtime': 7.29.2
       html-parse-stringify: 3.0.1
       i18next: 25.10.4(typescript@5.9.3)
-      react: 19.2.4
-      use-sync-external-store: 1.6.0(react@19.2.4)
+      react: 19.2.7
+      use-sync-external-store: 1.6.0(react@19.2.7)
     optionalDependencies:
-      react-dom: 19.2.4(react@19.2.4)
+      react-dom: 19.2.7(react@19.2.7)
       typescript: 5.9.3
 
   react-is@16.13.1: {}
 
   react-refresh@0.18.0: {}
 
-  react-router-dom@7.13.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
+  react-router-dom@7.18.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
     dependencies:
-      react: 19.2.4
-      react-dom: 19.2.4(react@19.2.4)
-      react-router: 7.13.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      react: 19.2.7
+      react-dom: 19.2.7(react@19.2.7)
+      react-router: 7.18.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
 
-  react-router@7.13.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
+  react-router@7.18.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
     dependencies:
       cookie: 1.1.1
-      react: 19.2.4
+      react: 19.2.7
       set-cookie-parser: 2.7.2
     optionalDependencies:
-      react-dom: 19.2.4(react@19.2.4)
+      react-dom: 19.2.7(react@19.2.7)
 
-  react@19.2.4: {}
+  react@19.2.7: {}
 
   resolve-from@4.0.0: {}
 
@@ -2874,9 +2897,9 @@ snapshots:
     dependencies:
       punycode: 2.3.1
 
-  use-sync-external-store@1.6.0(react@19.2.4):
+  use-sync-external-store@1.6.0(react@19.2.7):
     dependencies:
-      react: 19.2.4
+      react: 19.2.7
 
   vite@8.0.8(@types/node@24.12.0)(esbuild@0.27.4)(jiti@2.6.1):
     dependencies:
@@ -2909,8 +2932,8 @@ snapshots:
 
   zod@4.3.6: {}
 
-  zustand@5.0.12(@types/react@19.2.14)(react@19.2.4)(use-sync-external-store@1.6.0(react@19.2.4)):
+  zustand@5.0.14(@types/react@19.2.14)(react@19.2.7)(use-sync-external-store@1.6.0(react@19.2.7)):
     optionalDependencies:
       '@types/react': 19.2.14
-      react: 19.2.4
-      use-sync-external-store: 1.6.0(react@19.2.4)
+      react: 19.2.7
+      use-sync-external-store: 1.6.0(react@19.2.7)

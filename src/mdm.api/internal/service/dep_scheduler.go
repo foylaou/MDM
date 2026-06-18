@@ -84,56 +84,59 @@ func (s *DEPScheduler) loop(ctx context.Context) {
 // Concurrent calls are serialised — the second caller logs + returns immediately
 // rather than waiting (callers don't usually want to block; the in-flight cycle
 // will reach their device on its next iteration anyway).
-func (s *DEPScheduler) RunOnce(ctx context.Context) {
+func (s *DEPScheduler) RunOnce(ctx context.Context) port.DEPRunResult {
+	var zero port.DEPRunResult
 	// Defensive against typed-nil interface call. The HTTP layer's nil check
 	// is the primary gate, but this catches misconfiguration paths.
 	if s == nil {
 		log.Println("[dep-scheduler] RunOnce called on nil scheduler — ignored")
-		return
+		return zero
 	}
 	if !s.running.CompareAndSwap(false, true) {
 		log.Println("[dep-scheduler] another cycle is already running — skipping this trigger")
-		return
+		return zero
 	}
 	defer s.running.Store(false)
 
 	devices, err := s.abm.ListOrgDevices(ctx)
 	if err != nil {
 		log.Printf("[dep-scheduler] list ABM devices: %v", err)
-		return
+		return zero
 	}
 	known, err := s.repo.ListSerials(ctx)
 	if err != nil {
 		log.Printf("[dep-scheduler] list known assignments: %v", err)
-		return
+		return zero
 	}
 
-	newCount, skipCount, errCount := 0, 0, 0
+	res := port.DEPRunResult{ABMTotal: len(devices)}
 	for _, d := range devices {
-		if d.Serial == "" || known[d.Serial] {
+		if d.Serial == "" {
 			continue
 		}
-		result := s.applyOne(ctx, d)
-		switch result {
+		if known[d.Serial] {
+			res.AlreadyKnown++
+			continue
+		}
+		switch s.applyOne(ctx, d) {
 		case applyApplied:
-			newCount++
+			res.Applied++
 		case applySkipped:
-			skipCount++
+			res.Skipped++
 		case applyError:
-			errCount++
+			res.Errors++
 		}
 		if s.stepDelay > 0 {
 			select {
 			case <-ctx.Done():
-				return
+				return res
 			case <-time.After(s.stepDelay):
 			}
 		}
 	}
-	if newCount > 0 || errCount > 0 {
-		log.Printf("[dep-scheduler] cycle done: applied=%d skipped=%d errors=%d (ABM total=%d, known=%d)",
-			newCount, skipCount, errCount, len(devices), len(known))
-	}
+	log.Printf("[dep-scheduler] cycle done: applied=%d skipped=%d errors=%d already_known=%d (ABM total=%d)",
+		res.Applied, res.Skipped, res.Errors, res.AlreadyKnown, res.ABMTotal)
+	return res
 }
 
 type applyResult int

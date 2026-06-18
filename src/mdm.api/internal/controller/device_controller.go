@@ -1,8 +1,12 @@
 package controller
 
 import (
+	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -16,10 +20,12 @@ type DeviceController struct {
 	mdmClient    port.MicroMDMClient
 	auth         *middleware.AuthHelper
 	depScheduler port.DEPSchedulerRunner // nil when DEP_AUTO_ASSIGN=false
+	depRepo      port.DEPAssignmentRepo  // nil when DEP_AUTO_ASSIGN=false
+	templateDir  string                  // path holding mac.json / ipad.json etc.
 }
 
-func NewDeviceController(deviceRepo *postgres.DeviceRepo, mdmClient port.MicroMDMClient, auth *middleware.AuthHelper, depScheduler port.DEPSchedulerRunner) *DeviceController {
-	return &DeviceController{deviceRepo: deviceRepo, mdmClient: mdmClient, auth: auth, depScheduler: depScheduler}
+func NewDeviceController(deviceRepo *postgres.DeviceRepo, mdmClient port.MicroMDMClient, auth *middleware.AuthHelper, depScheduler port.DEPSchedulerRunner, depRepo port.DEPAssignmentRepo, templateDir string) *DeviceController {
+	return &DeviceController{deviceRepo: deviceRepo, mdmClient: mdmClient, auth: auth, depScheduler: depScheduler, depRepo: depRepo, templateDir: templateDir}
 }
 
 func (c *DeviceController) RegisterRoutes(mux *http.ServeMux) {
@@ -28,6 +34,8 @@ func (c *DeviceController) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/devices-available", c.handleDevicesAvailable)
 	mux.HandleFunc("/api/sync-device-info", c.handleSyncDeviceInfo)
 	mux.HandleFunc("/api/dep/apply-now", c.handleDEPApplyNow)
+	mux.HandleFunc("/api/dep/retry", c.handleDEPRetry)
+	mux.HandleFunc("/api/dep/templates/", c.handleDEPTemplate)
 }
 
 // handleDEPApplyNow runs the DEP scheduler's RunOnce synchronously so an admin
@@ -53,11 +61,164 @@ func (c *DeviceController) handleDEPApplyNow(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusServiceUnavailable, "DEP 自動派發未啟用（DEP_AUTO_ASSIGN=false 或 ABM 設定不完整）")
 		return
 	}
-	// RunOnce logs counts but doesn't return them. Fire-and-acknowledge —
-	// the admin can refresh the page or look at logs for details.
-	c.depScheduler.RunOnce(r.Context())
-	writeJSON(w, map[string]interface{}{"ok": true, "message": "DEP 套用完成，請查看伺服器 log 取得明細"})
-	log.Printf("[dep-apply-now] triggered by admin")
+	res := c.depScheduler.RunOnce(r.Context())
+	log.Printf("[dep-apply-now] triggered by admin: applied=%d skipped=%d errors=%d already_known=%d abm_total=%d",
+		res.Applied, res.Skipped, res.Errors, res.AlreadyKnown, res.ABMTotal)
+	writeJSON(w, map[string]interface{}{
+		"ok":            true,
+		"applied":       res.Applied,
+		"skipped":       res.Skipped,
+		"errors":        res.Errors,
+		"already_known": res.AlreadyKnown,
+		"abm_total":     res.ABMTotal,
+	})
+}
+
+// handleDEPRetry clears a serial from dep_assignments so the scheduler will
+// re-apply the profile on the next cycle (or the next apply-now call).
+func (c *DeviceController) handleDEPRetry(w http.ResponseWriter, r *http.Request) {
+	if _, err := c.auth.RequireSysAdmin(r); err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	if !requireMethod(w, r, http.MethodPost) {
+		return
+	}
+	if c.depRepo == nil {
+		writeError(w, http.StatusServiceUnavailable, "DEP 未啟用")
+		return
+	}
+	var body struct {
+		Serial string `json:"serial"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Serial == "" {
+		writeError(w, http.StatusBadRequest, "serial required")
+		return
+	}
+	if err := c.depRepo.Delete(r.Context(), body.Serial); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	log.Printf("[dep-retry] cleared serial=%s from dep_assignments by admin", body.Serial)
+	// Run a cycle immediately so the device gets processed right now.
+	if c.depScheduler != nil {
+		res := c.depScheduler.RunOnce(r.Context())
+		writeJSON(w, map[string]interface{}{
+			"ok":            true,
+			"serial":        body.Serial,
+			"applied":       res.Applied,
+			"skipped":       res.Skipped,
+			"errors":        res.Errors,
+			"already_known": res.AlreadyKnown,
+		})
+		return
+	}
+	writeOK(w)
+}
+
+// handleDEPTemplate GET/PUT /api/dep/templates/:family
+// family = mac | ipad | iphone | appletv
+// Returns the raw JSON content of the template file, or writes new content.
+// Requires sys_admin. templateDir="" → 503.
+func (c *DeviceController) handleDEPTemplate(w http.ResponseWriter, r *http.Request) {
+	if _, err := c.auth.RequireSysAdmin(r); err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	if c.templateDir == "" {
+		writeError(w, http.StatusServiceUnavailable, "DEP 模板目錄未設定（DEP_TEMPLATE_DIR）")
+		return
+	}
+
+	family := strings.TrimPrefix(r.URL.Path, "/api/dep/templates/")
+	family = strings.ToLower(strings.TrimSuffix(family, ".json"))
+	switch family {
+	case "mac", "ipad", "iphone", "appletv":
+	default:
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("未知裝置類型 %q，應為 mac / ipad / iphone / appletv", family))
+		return
+	}
+
+	path := filepath.Join(c.templateDir, family+".json")
+
+	switch r.Method {
+	case http.MethodGet:
+		data, err := os.ReadFile(path)
+		if os.IsNotExist(err) {
+			// Return empty template so the UI can prefill.
+			writeJSON(w, map[string]interface{}{
+				"exists":  false,
+				"content": defaultDEPTemplate(family),
+			})
+			return
+		}
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		// Validate it's valid JSON before echoing.
+		var check map[string]interface{}
+		if err := json.Unmarshal(data, &check); err != nil {
+			writeError(w, http.StatusInternalServerError, "模板檔案 JSON 解析失敗："+err.Error())
+			return
+		}
+		writeJSON(w, map[string]interface{}{"exists": true, "content": string(data)})
+
+	case http.MethodPut:
+		var body struct {
+			Content string `json:"content"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid body")
+			return
+		}
+		// Validate JSON before saving.
+		var check map[string]interface{}
+		if err := json.Unmarshal([]byte(body.Content), &check); err != nil {
+			writeError(w, http.StatusBadRequest, "JSON 格式錯誤："+err.Error())
+			return
+		}
+		if err := os.MkdirAll(c.templateDir, 0o755); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if err := os.WriteFile(path, []byte(body.Content), 0o644); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		log.Printf("[dep-template] saved %s", path)
+		writeOK(w)
+
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+// defaultDEPTemplate returns a minimal DEP profile skeleton for each device family.
+func defaultDEPTemplate(_ string) string {
+	return `{
+  "url": "https://YOUR_MDM_SERVER/mdm",
+  "allow_pairing": true,
+  "is_supervised": true,
+  "is_mandatory": true,
+  "await_device_configured": false,
+  "department": "",
+  "skip_setup_items": [
+    "AppleID",
+    "Biometric",
+    "Diagnostics",
+    "DisplayTone",
+    "Location",
+    "Passcode",
+    "Payment",
+    "Privacy",
+    "Restore",
+    "ScreenTime",
+    "Siri",
+    "TOS",
+    "iMessageAndFaceTime"
+  ]
+}`
 }
 
 // handleDeviceByID godoc

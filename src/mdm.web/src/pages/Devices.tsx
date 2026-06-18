@@ -93,8 +93,18 @@ export function Devices() {
   const handleApplyDEP = async () => {
     setApplyingDEP(true);
     try {
-      await apiClient.post("/api/dep/apply-now");
-      await dialog.success("DEP 套用已執行，請看伺服器 log 取得每台裝置的明細");
+      const { data } = await apiClient.post("/api/dep/apply-now");
+      const lines: string[] = [
+        `ABM 裝置總數：${data.abm_total}`,
+        `✅ 套用成功：${data.applied}`,
+        `⏭️ 已跳過（已套用過）：${data.already_known}`,
+        `⚠️ 模板缺少或未知型號：${data.skipped}`,
+        `❌ 錯誤：${data.errors}`,
+      ];
+      if (data.applied === 0 && data.already_known > 0) {
+        lines.push("", "所有裝置均已套用過，若需強制重試請用「強制重試」功能。");
+      }
+      await dialog.success(lines.join("\n"));
     } catch (err: unknown) {
       let detail = "";
       if (err && typeof err === "object" && "response" in err) {
@@ -107,6 +117,22 @@ export function Devices() {
       await dialog.error("立即套用失敗：" + (detail || "(未知)"));
     } finally {
       setApplyingDEP(false);
+    }
+  };
+
+  const handleDEPRetry = async (serial: string) => {
+    try {
+      const { data } = await apiClient.post("/api/dep/retry", { serial });
+      const lines: string[] = [
+        `序號 ${serial} 已清除舊記錄並立即重試`,
+        `✅ 套用成功：${data.applied}`,
+        `⚠️ 模板缺少或未知型號：${data.skipped}`,
+        `❌ 錯誤：${data.errors}`,
+      ];
+      await dialog.success(lines.join("\n"));
+    } catch (err: unknown) {
+      const resp = (err as { response?: { data?: { error?: string } } })?.response?.data;
+      await dialog.error("強制重試失敗：" + (resp?.error || (err instanceof Error ? err.message : "(未知)")));
     }
   };
 
@@ -178,7 +204,27 @@ export function Devices() {
       cellRenderer: (p: ICellRendererParams<DeviceRow>) =>
         <span className={`badge badge-sm ${p.value === "enrolled" ? "badge-success" : "badge-ghost"}`}>{p.value}</span>,
     },
-  ], [t]);
+    ...(user?.system_role === "sys_admin" || user?.role === "admin" ? [{
+      headerName: "DEP",
+      colId: "dep_retry",
+      width: 90,
+      sortable: false,
+      filter: false,
+      cellRenderer: (p: ICellRendererParams<DeviceRow>) => {
+        const serial = p.data?.serial_number;
+        if (!serial) return null;
+        return (
+          <button
+            onClick={() => handleDEPRetry(serial)}
+            className="btn btn-ghost btn-xs text-warning"
+            title="強制重試 DEP profile 套用"
+          >
+            重試
+          </button>
+        );
+      },
+    }] as typeof columnDefs : []),
+  ], [t, user, handleDEPRetry]);
 
   return (
     <div className="space-y-4">

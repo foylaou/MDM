@@ -154,6 +154,7 @@ func main() {
 	// We hoist the variable so the device controller can expose a "run now"
 	// button (admin trigger when not wanting to wait for the next tick).
 	var depScheduler *service.DEPScheduler
+	var depRepoForController *postgres.DEPAssignmentRepo
 	if cfg.DEPAutoAssign {
 		if cfg.ABMKeyPath == "" || cfg.ABMClientID == "" || cfg.ABMKeyID == "" {
 			log.Printf("[dep-scheduler] disabled: DEP_AUTO_ASSIGN=true but ABM_KEY_PATH/CLIENT_ID/KEY_ID missing")
@@ -169,6 +170,7 @@ func main() {
 				log.Printf("[dep-scheduler] disabled: ABM client init: %v", err)
 			} else {
 				depRepo := postgres.NewDEPAssignmentRepo(pool)
+				depRepoForController = depRepo
 				depScheduler = service.NewDEPScheduler(abmClient, mdmClient, depRepo, cfg.DEPTemplateDir, cfg.DEPPollInterval)
 				depScheduler.Start(context.Background())
 				log.Printf("[dep-scheduler] enabled, polling every %s, templates in %s", cfg.DEPPollInterval, cfg.DEPTemplateDir)
@@ -268,7 +270,7 @@ func main() {
 		// `if scheduler == nil` check works. Passing the concrete *Scheduler
 		// directly would produce a typed-nil interface (interface != nil but
 		// underlying pointer == nil) → silent panic on method call.
-		controller.NewDeviceController(deviceRepo, mdmClient, authHelper, depSchedulerRunner(depScheduler)),
+		controller.NewDeviceController(deviceRepo, mdmClient, authHelper, depSchedulerRunner(depScheduler), depRepoForController, cfg.DEPTemplateDir),
 		controller.NewAssetController(assetRepo, auditRepo, custodyRepo, userRepo, categoryRepo, authHelper),
 		controller.NewInventoryController(inventoryRepo, auditRepo, authHelper),
 		controller.NewRentalController(rentalRepo, assetRepo, userRepo, notifySvc, authHelper),

@@ -172,6 +172,43 @@ type swagReturnReq struct {
 	Checklist map[string]interface{} `json:"checklist"`
 }
 
+// -- Maintenance --
+
+type swagMaintenanceReq struct {
+	AssetIDs     []string `json:"asset_ids"`
+	ApplicantID  string   `json:"applicant_id"`
+	Reason       string   `json:"reason"`
+	Vendor       string   `json:"vendor"`
+	Technician   string   `json:"technician"`
+	CheckoutDate *string  `json:"checkout_date" example:"2025-06-01"`
+	ReturnDate   *string  `json:"return_date" example:"2025-06-10"`
+}
+
+type swagMaintenanceCreateResp struct {
+	IDs           []string `json:"ids"`
+	Count         int      `json:"count"`
+	RequestNumber int      `json:"request_number"`
+}
+
+// -- Disposal --
+
+type swagDisposalItemReq struct {
+	AssetID         string  `json:"asset_id"`
+	DisposeDate     *string `json:"dispose_date" example:"2025-06-01"`
+	DisposeReason   string  `json:"dispose_reason"`
+	DataWipeChecked bool    `json:"data_wipe_checked"`
+}
+
+type swagDisposalReq struct {
+	ApplicantID string                 `json:"applicant_id"`
+	Items       []swagDisposalItemReq  `json:"items"`
+}
+
+type swagDisposalCreateResp struct {
+	ID            string `json:"id"`
+	RequestNumber int    `json:"request_number"`
+}
+
 // -- App --
 
 type swagManagedAppReq struct {

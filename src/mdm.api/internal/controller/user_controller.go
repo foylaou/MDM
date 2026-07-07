@@ -132,7 +132,7 @@ func (c *UserController) handleUserPermissions(w http.ResponseWriter, r *http.Re
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		validModules := map[string]bool{"asset": true, "mdm": true, "rental": true}
+		validModules := map[string]bool{"asset": true, "mdm": true, "rental": true, "maintenance": true, "disposal": true}
 		validLevels := map[string]bool{"none": true, "viewer": true, "requester": true, "operator": true, "approver": true, "manager": true}
 		for module, level := range body {
 			if !validModules[module] || !validLevels[level] {

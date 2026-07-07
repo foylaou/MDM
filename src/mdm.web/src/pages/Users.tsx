@@ -17,12 +17,17 @@ interface UserRow {
   permissions: Record<string, string>;
 }
 
-const modules = ["asset", "mdm", "rental"] as const;
-const moduleLabels: Record<string, string> = { asset: "財產管理", mdm: "裝置管理", rental: "租借系統" };
+const modules = ["asset", "mdm", "rental", "maintenance", "disposal"] as const;
+const moduleLabels: Record<string, string> = {
+  asset: "財產管理", mdm: "裝置管理", rental: "租借系統",
+  maintenance: "設備維修申請", disposal: "資產報廢申請",
+};
 const levelOptions: Record<string, string[]> = {
   asset: ["none", "viewer", "operator", "manager"],
   mdm: ["none", "viewer", "operator", "manager"],
   rental: ["none", "requester", "approver", "manager"],
+  maintenance: ["none", "requester", "operator", "approver", "manager"],
+  disposal: ["none", "requester", "approver", "manager"],
 };
 const levelLabels: Record<string, string> = {
   none: "無權限", viewer: "檢視者", requester: "申請者",

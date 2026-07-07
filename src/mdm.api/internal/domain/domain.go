@@ -212,6 +212,73 @@ type Rental struct {
 	AssetName    string
 }
 
+// --- Maintenance (Equipment dispatch) Management ---
+
+// MaintenanceRequest is one asset line of a 資通設備進出及維護申請單.
+// Multiple rows can share the same RequestNumber, mirroring Rental's
+// batch-by-number pattern.
+type MaintenanceRequest struct {
+	ID             string
+	RequestNumber  int
+	AssetID        string
+	ApplicantID    string
+	ApplicantName  string
+	Reason         string // 申請原因
+	Vendor         string // 維修廠商
+	Technician     string // 維修人員
+	CheckoutDate   *time.Time
+	ReturnDate     *time.Time
+	ProcessNotes   string // 作業過程
+	Status         string // pending, handler_signed, approved, returned, rejected
+	HandlerID      *string
+	HandlerName    string
+	HandledAt      *time.Time
+	SupervisorID   *string
+	SupervisorName string
+	ApprovedAt     *time.Time
+	RejectReason   string
+	IsArchived     bool
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	// Joined fields (read-only)
+	AssetName   string
+	AssetNumber string
+}
+
+// --- Disposal Management ---
+
+// DisposalRequest is a 資訊資產報廢申請 application header, covering one or
+// more assets (DisposalRequestItem rows).
+type DisposalRequest struct {
+	ID            string
+	RequestNumber int
+	ApplicantID   string
+	ApplicantName string
+	Status        string // pending, approved, rejected
+	ApproverID    *string
+	ApproverName  string
+	ApprovedAt    *time.Time
+	RejectReason  string
+	IsArchived    bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	// Joined
+	Items []DisposalRequestItem
+}
+
+// DisposalRequestItem is one asset line within a DisposalRequest.
+type DisposalRequestItem struct {
+	ID              string
+	DisposalID      string
+	LineNo          int
+	AssetID         string
+	AssetName       string // snapshot at time of application
+	AssetNumber     string // snapshot at time of application
+	DisposeDate     *time.Time
+	DisposeReason   string
+	DataWipeChecked bool
+}
+
 // --- App Management ---
 
 type ManagedApp struct {

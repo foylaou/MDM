@@ -9,6 +9,7 @@ import { ViewerOnboarding } from "./ViewerOnboarding";
 import {
   LayoutDashboard, Tablet, Terminal, Radio, Users, ClipboardList, FileText, Package, Repeat, FolderTree,
   LogOut, Menu, Moon, Sun, Globe, Bell, Wifi, WifiOff, Lock, Briefcase, BellRing, ClipboardCheck, Settings, ScrollText,
+  Wrench, Trash2,
 } from "lucide-react";
 import { useState, useEffect, type ReactNode } from "react";
 
@@ -62,6 +63,20 @@ const navGroups: NavGroup[] = [
     items: [
       { path: "/rental/list", labelKey: "nav.rentals", icon: <Repeat size={20} />, module: "rental" },
       { path: "/rental/notifications", labelKey: "nav.notifications", icon: <BellRing size={20} />, module: "rental", minLevel: "approver" },
+    ],
+  },
+  {
+    labelKey: "nav.group_maintenance",
+    module: "maintenance",
+    items: [
+      { path: "/maintenance/list", labelKey: "nav.maintenanceRequests", icon: <Wrench size={20} />, module: "maintenance" },
+    ],
+  },
+  {
+    labelKey: "nav.group_disposal",
+    module: "disposal",
+    items: [
+      { path: "/disposal/list", labelKey: "nav.disposalRequests", icon: <Trash2 size={20} />, module: "disposal" },
     ],
   },
   {

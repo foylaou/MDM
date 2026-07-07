@@ -70,3 +70,9 @@ var Migration022SQL string
 
 //go:embed migrations/023_asset_is_rentable.up.sql
 var Migration023SQL string
+
+//go:embed migrations/024_maintenance_requests.up.sql
+var Migration024SQL string
+
+//go:embed migrations/025_disposal_requests.up.sql
+var Migration025SQL string

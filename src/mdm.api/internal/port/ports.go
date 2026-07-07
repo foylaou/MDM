@@ -112,6 +112,37 @@ type RentalRepository interface {
 	ListOverdue(ctx context.Context) ([]*domain.Rental, error)
 }
 
+// MaintenanceRepository persists equipment maintenance dispatch requests
+// (資通設備進出及維護申請單). Multiple rows can share a RequestNumber when a
+// single application covers several assets, mirroring RentalRepository.
+type MaintenanceRepository interface {
+	List(ctx context.Context, status string, showArchived bool) ([]*domain.MaintenanceRequest, error)
+	Create(ctx context.Context, req *domain.MaintenanceRequest) (string, error)
+	GetByID(ctx context.Context, id string) (*domain.MaintenanceRequest, error)
+	NextRequestNumber(ctx context.Context) (int, error)
+	SignByHandler(ctx context.Context, requestNumber int, handlerID string, handlerName string) error
+	ApproveBySupervisor(ctx context.Context, requestNumber int, supervisorID string, supervisorName string, checkoutDate *time.Time) error
+	Return(ctx context.Context, requestNumber int, returnDate *time.Time, processNotes string) error
+	Reject(ctx context.Context, requestNumber int, reason string) error
+	DeleteByNumber(ctx context.Context, requestNumber int) error
+	Archive(ctx context.Context, ids []string) error
+	ListAssetIDsByNumber(ctx context.Context, requestNumber int) ([]string, error)
+}
+
+// DisposalRepository persists asset disposal applications (資訊資產報廢申請).
+// Each application has one header row and one or more item rows (one per
+// asset). Approving executes the actual disposal via AssetRepository.Dispose.
+type DisposalRepository interface {
+	List(ctx context.Context, status string, showArchived bool) ([]*domain.DisposalRequest, error)
+	GetByID(ctx context.Context, id string) (*domain.DisposalRequest, error)
+	NextRequestNumber(ctx context.Context) (int, error)
+	Create(ctx context.Context, req *domain.DisposalRequest) (string, error)
+	Approve(ctx context.Context, id string, approverID string, approverName string) error
+	Reject(ctx context.Context, id string, reason string) error
+	Delete(ctx context.Context, id string) error
+	Archive(ctx context.Context, ids []string) error
+}
+
 // AppRepository persists managed apps and device-app bindings.
 type AppRepository interface {
 	ListManagedApps(ctx context.Context) ([]*domain.ManagedApp, error)

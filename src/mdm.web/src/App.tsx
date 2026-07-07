@@ -19,6 +19,8 @@ import { Events } from "./pages/Events";
 import { Users } from "./pages/Users";
 import { Audit } from "./pages/Audit";
 import { Rentals } from "./pages/Rentals";
+import { MaintenanceRequests } from "./pages/MaintenanceRequests";
+import { DisposalRequests } from "./pages/DisposalRequests";
 import { Categories } from "./pages/Categories";
 import { Inventory } from "./pages/Inventory";
 import { AssetList } from "./pages/AssetList";
@@ -110,6 +112,12 @@ function AppRoutes() {
         {/* Rental module */}
         <Route path="/rental/list" element={<ModuleGuard module="rental" minLevel="requester"><Rentals /></ModuleGuard>} />
         <Route path="/rental/notifications" element={<ModuleGuard module="rental" minLevel="approver"><Notifications /></ModuleGuard>} />
+
+        {/* Maintenance module */}
+        <Route path="/maintenance/list" element={<ModuleGuard module="maintenance" minLevel="requester"><MaintenanceRequests /></ModuleGuard>} />
+
+        {/* Disposal module */}
+        <Route path="/disposal/list" element={<ModuleGuard module="disposal" minLevel="requester"><DisposalRequests /></ModuleGuard>} />
 
         {/* Admin */}
         <Route path="/admin/users" element={<Users />} />

@@ -131,6 +131,23 @@ type Asset struct {
 	CategoryName string
 }
 
+// PickableAsset is the lightweight shape returned to asset-picker UIs
+// (maintenance/disposal requests, etc.) that need every asset regardless of
+// its IsRentable flag. Covers both MDM-linked and standalone assets.
+type PickableAsset struct {
+	AssetID      string
+	AssetNumber  string
+	Name         string
+	Spec         string
+	DeviceUdid   *string
+	SerialNumber string
+	Model        string
+	OSVersion    string
+	AssetStatus  string
+	CategoryID   *string
+	CategoryName string
+}
+
 // AssetCustodyLog records every change to an asset's custodian.
 // Append-only audit trail for ISO 27001 A.8 compliance.
 type AssetCustodyLog struct {

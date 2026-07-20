@@ -301,7 +301,7 @@ export function MaintenanceRequests() {
             <div className="space-y-4">
               <div className="form-control">
                 <label className="label"><span className="label-text font-medium">設備名稱及編號</span></label>
-                <AssetPicker selected={selectedAssets} onChange={setSelectedAssets} showFilters />
+                <AssetPicker selected={selectedAssets} onChange={setSelectedAssets} showFilters endpoint="/api/pickable-assets" />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="form-control">

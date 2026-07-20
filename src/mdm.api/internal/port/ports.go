@@ -57,6 +57,9 @@ type VPPClient interface {
 type AssetRepository interface {
 	IsCustodianOfAll(ctx context.Context, userID string, udids []string) (bool, error)
 	List(ctx context.Context, deviceUdid string) ([]*domain.Asset, error)
+	// ListPickable returns every asset (rentable or not) for picker UIs that
+	// need the full inventory, e.g. maintenance/disposal requests.
+	ListPickable(ctx context.Context) ([]domain.PickableAsset, error)
 	GetByID(ctx context.Context, id string) (*domain.Asset, error)
 	GetByDeviceUdid(ctx context.Context, udid string) (*domain.Asset, error)
 	Create(ctx context.Context, asset *domain.Asset) (string, error)

@@ -175,13 +175,33 @@ type swagReturnReq struct {
 // -- Maintenance --
 
 type swagMaintenanceReq struct {
-	AssetIDs     []string `json:"asset_ids"`
-	ApplicantID  string   `json:"applicant_id"`
-	Reason       string   `json:"reason"`
-	Vendor       string   `json:"vendor"`
-	Technician   string   `json:"technician"`
-	CheckoutDate *string  `json:"checkout_date" example:"2025-06-01"`
-	ReturnDate   *string  `json:"return_date" example:"2025-06-10"`
+	AssetIDs              []string `json:"asset_ids"`
+	ApplicantID           string   `json:"applicant_id"`
+	Reason                string   `json:"reason"`
+	Vendor                string   `json:"vendor"`
+	Technician            string   `json:"technician"`
+	CheckoutDate          *string  `json:"checkout_date" example:"2025-06-01"`
+	ReturnDate            *string  `json:"return_date" example:"2025-06-10"`
+	ContainsSensitiveData bool     `json:"contains_sensitive_data"`
+	VendorNDARef          string   `json:"vendor_nda_ref"`
+}
+
+// swagMaintenanceApproveReq is the body for POST /api/maintenance-requests/{id}/approve.
+// Captures the ISO 27001 checks performed at the moment the device physically
+// leaves and, if the vendor supplies one, a loaner arrives.
+type swagMaintenanceApproveReq struct {
+	CheckoutDate            *string `json:"checkout_date" example:"2025-06-01"`
+	DataWipedBeforeCheckout bool    `json:"data_wiped_before_checkout"`
+	LoanerInfo              string  `json:"loaner_info" example:"廠牌型號/序號"`
+	LoanerProvidedDate      *string `json:"loaner_provided_date" example:"2025-06-01"`
+	LoanerSecurityChecked   bool    `json:"loaner_security_checked"`
+}
+
+// swagMaintenanceReturnReq is the body for POST /api/maintenance-requests/{id}/return.
+type swagMaintenanceReturnReq struct {
+	ReturnDate         *string `json:"return_date" example:"2025-06-10"`
+	ProcessNotes       string  `json:"process_notes"`
+	LoanerReturnedDate *string `json:"loaner_returned_date" example:"2025-06-10"`
 }
 
 type swagMaintenanceCreateResp struct {

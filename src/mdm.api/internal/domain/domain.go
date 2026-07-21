@@ -257,9 +257,39 @@ type MaintenanceRequest struct {
 	IsArchived     bool
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+	// ISO 27001 fields — data-leakage risk on the outgoing device (A.7.9 /
+	// A.8.10) and third-party loaner-device risk (A.8.1 / A.5.20).
+	ContainsSensitiveData   bool   // 是否含機敏/個資資料
+	VendorNDARef            string // 廠商保密協議編號/註記
+	DataWipedBeforeCheckout bool   // 送修前已備份/已清除資料
+	LoanerInfo              string // 替代機資訊（廠牌型號/序號）
+	LoanerProvidedDate      *time.Time
+	LoanerSecurityChecked   bool // 替代機已完成資安檢查
+	LoanerReturnedDate      *time.Time
 	// Joined fields (read-only)
 	AssetName   string
 	AssetNumber string
+}
+
+// MaintenanceApproveParams carries the fields captured at the moment the
+// supervisor approves a maintenance request — the point where the asset
+// physically leaves and, if the vendor supplies one, a loaner arrives.
+type MaintenanceApproveParams struct {
+	SupervisorID            string
+	SupervisorName          string
+	CheckoutDate            *time.Time
+	DataWipedBeforeCheckout bool
+	LoanerInfo              string
+	LoanerProvidedDate      *time.Time
+	LoanerSecurityChecked   bool
+}
+
+// MaintenanceReturnParams carries the fields captured when the asset (and
+// any loaner) is checked back in.
+type MaintenanceReturnParams struct {
+	ReturnDate         *time.Time
+	ProcessNotes       string
+	LoanerReturnedDate *time.Time
 }
 
 // --- Disposal Management ---

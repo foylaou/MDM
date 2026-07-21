@@ -124,8 +124,8 @@ type MaintenanceRepository interface {
 	GetByID(ctx context.Context, id string) (*domain.MaintenanceRequest, error)
 	NextRequestNumber(ctx context.Context) (int, error)
 	SignByHandler(ctx context.Context, requestNumber int, handlerID string, handlerName string) error
-	ApproveBySupervisor(ctx context.Context, requestNumber int, supervisorID string, supervisorName string, checkoutDate *time.Time) error
-	Return(ctx context.Context, requestNumber int, returnDate *time.Time, processNotes string) error
+	ApproveBySupervisor(ctx context.Context, requestNumber int, params domain.MaintenanceApproveParams) error
+	Return(ctx context.Context, requestNumber int, params domain.MaintenanceReturnParams) error
 	Reject(ctx context.Context, requestNumber int, reason string) error
 	DeleteByNumber(ctx context.Context, requestNumber int) error
 	Archive(ctx context.Context, ids []string) error

@@ -23,11 +23,12 @@ type MaintenanceController struct {
 	maintRepo port.MaintenanceRepository
 	assetRepo port.AssetRepository
 	userRepo  port.UserRepository
+	auditRepo port.AuditRepository
 	auth      *middleware.AuthHelper
 }
 
-func NewMaintenanceController(maintRepo port.MaintenanceRepository, assetRepo port.AssetRepository, userRepo port.UserRepository, auth *middleware.AuthHelper) *MaintenanceController {
-	return &MaintenanceController{maintRepo: maintRepo, assetRepo: assetRepo, userRepo: userRepo, auth: auth}
+func NewMaintenanceController(maintRepo port.MaintenanceRepository, assetRepo port.AssetRepository, userRepo port.UserRepository, auditRepo port.AuditRepository, auth *middleware.AuthHelper) *MaintenanceController {
+	return &MaintenanceController{maintRepo: maintRepo, assetRepo: assetRepo, userRepo: userRepo, auditRepo: auditRepo, auth: auth}
 }
 
 func (c *MaintenanceController) RegisterRoutes(mux *http.ServeMux) {
@@ -47,6 +48,10 @@ func maintenanceToRow(m *domain.MaintenanceRequest) map[string]interface{} {
 		"supervisor_id": m.SupervisorID, "supervisor_name": m.SupervisorName,
 		"reject_reason": m.RejectReason, "is_archived": m.IsArchived,
 		"created_at": m.CreatedAt.Format(time.RFC3339), "updated_at": m.UpdatedAt.Format(time.RFC3339),
+		"contains_sensitive_data": m.ContainsSensitiveData, "vendor_nda_ref": m.VendorNDARef,
+		"data_wiped_before_checkout": m.DataWipedBeforeCheckout,
+		"loaner_info":                m.LoanerInfo,
+		"loaner_security_checked":    m.LoanerSecurityChecked,
 	}
 	if m.CheckoutDate != nil {
 		row["checkout_date"] = m.CheckoutDate.Format("2006-01-02")
@@ -67,6 +72,16 @@ func maintenanceToRow(m *domain.MaintenanceRequest) map[string]interface{} {
 		row["approved_at"] = m.ApprovedAt.Format(time.RFC3339)
 	} else {
 		row["approved_at"] = nil
+	}
+	if m.LoanerProvidedDate != nil {
+		row["loaner_provided_date"] = m.LoanerProvidedDate.Format("2006-01-02")
+	} else {
+		row["loaner_provided_date"] = nil
+	}
+	if m.LoanerReturnedDate != nil {
+		row["loaner_returned_date"] = m.LoanerReturnedDate.Format("2006-01-02")
+	} else {
+		row["loaner_returned_date"] = nil
 	}
 	return row
 }
@@ -108,13 +123,15 @@ func (c *MaintenanceController) handleList(w http.ResponseWriter, r *http.Reques
 
 	case http.MethodPost:
 		var body struct {
-			AssetIDs     []string `json:"asset_ids"`
-			ApplicantID  string   `json:"applicant_id"`
-			Reason       string   `json:"reason"`
-			Vendor       string   `json:"vendor"`
-			Technician   string   `json:"technician"`
-			CheckoutDate *string  `json:"checkout_date"`
-			ReturnDate   *string  `json:"return_date"`
+			AssetIDs              []string `json:"asset_ids"`
+			ApplicantID           string   `json:"applicant_id"`
+			Reason                string   `json:"reason"`
+			Vendor                string   `json:"vendor"`
+			Technician            string   `json:"technician"`
+			CheckoutDate          *string  `json:"checkout_date"`
+			ReturnDate            *string  `json:"return_date"`
+			ContainsSensitiveData bool     `json:"contains_sensitive_data"`
+			VendorNDARef          string   `json:"vendor_nda_ref"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || len(body.AssetIDs) == 0 || body.ApplicantID == "" {
 			writeError(w, http.StatusBadRequest, "asset_ids and applicant_id required")
@@ -137,15 +154,17 @@ func (c *MaintenanceController) handleList(w http.ResponseWriter, r *http.Reques
 		var ids []string
 		for _, assetID := range body.AssetIDs {
 			req := &domain.MaintenanceRequest{
-				RequestNumber: requestNumber,
-				AssetID:       assetID,
-				ApplicantID:   body.ApplicantID,
-				ApplicantName: applicantName,
-				Reason:        body.Reason,
-				Vendor:        body.Vendor,
-				Technician:    body.Technician,
-				CheckoutDate:  checkoutDate,
-				ReturnDate:    returnDate,
+				RequestNumber:         requestNumber,
+				AssetID:               assetID,
+				ApplicantID:           body.ApplicantID,
+				ApplicantName:         applicantName,
+				Reason:                body.Reason,
+				Vendor:                body.Vendor,
+				Technician:            body.Technician,
+				CheckoutDate:          checkoutDate,
+				ReturnDate:            returnDate,
+				ContainsSensitiveData: body.ContainsSensitiveData,
+				VendorNDARef:          body.VendorNDARef,
 			}
 			id, err := c.maintRepo.Create(r.Context(), req)
 			if err != nil {
@@ -181,6 +200,8 @@ func parseDatePtr(s *string) *time.Time {
 // @Security BearerAuth
 // @Param id path string true "維修申請 ID"
 // @Param action path string false "操作" Enums(sign,approve,return,reject)
+// @Param body body swagMaintenanceApproveReq false "核准時的資安檢核（approve 時使用）"
+// @Param body body swagMaintenanceReturnReq false "歸還資訊（return 時使用）"
 // @Success 200 {object} swagOK
 // @Router /api/maintenance-requests/{id}/{action} [post]
 // @Router /api/maintenance-requests/{id} [delete]
@@ -225,6 +246,12 @@ func (c *MaintenanceController) handleByID(w http.ResponseWriter, r *http.Reques
 				writeError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
+			c.auditRepo.Create(r.Context(), &domain.AuditLog{
+				UserID: claims.UserID, Username: claims.Username,
+				Action: "maintenance_sign", Target: id,
+				Detail: fmt.Sprintf("request_number=%d", req.RequestNumber), Module: "maintenance",
+				IPAddress: clientIP(r), UserAgent: r.UserAgent(),
+			})
 			writeJSON(w, map[string]interface{}{"ok": true, "status": "handler_signed"})
 
 		case "approve":
@@ -237,11 +264,23 @@ func (c *MaintenanceController) handleByID(w http.ResponseWriter, r *http.Reques
 				return
 			}
 			var body struct {
-				CheckoutDate *string `json:"checkout_date"`
+				CheckoutDate            *string `json:"checkout_date"`
+				DataWipedBeforeCheckout bool    `json:"data_wiped_before_checkout"`
+				LoanerInfo              string  `json:"loaner_info"`
+				LoanerProvidedDate      *string `json:"loaner_provided_date"`
+				LoanerSecurityChecked   bool    `json:"loaner_security_checked"`
 			}
 			json.NewDecoder(r.Body).Decode(&body)
-			checkoutDate := parseDatePtr(body.CheckoutDate)
-			if err := c.maintRepo.ApproveBySupervisor(r.Context(), req.RequestNumber, claims.UserID, operatorName, checkoutDate); err != nil {
+			approveParams := domain.MaintenanceApproveParams{
+				SupervisorID:            claims.UserID,
+				SupervisorName:          operatorName,
+				CheckoutDate:            parseDatePtr(body.CheckoutDate),
+				DataWipedBeforeCheckout: body.DataWipedBeforeCheckout,
+				LoanerInfo:              body.LoanerInfo,
+				LoanerProvidedDate:      parseDatePtr(body.LoanerProvidedDate),
+				LoanerSecurityChecked:   body.LoanerSecurityChecked,
+			}
+			if err := c.maintRepo.ApproveBySupervisor(r.Context(), req.RequestNumber, approveParams); err != nil {
 				writeError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
@@ -249,6 +288,16 @@ func (c *MaintenanceController) handleByID(w http.ResponseWriter, r *http.Reques
 			for _, aid := range assetIDs {
 				c.assetRepo.Update(r.Context(), aid, map[string]interface{}{"asset_status": "repairing"})
 			}
+			auditDetail := fmt.Sprintf("request_number=%d data_wiped_before_checkout=%t", req.RequestNumber, body.DataWipedBeforeCheckout)
+			if body.LoanerInfo != "" {
+				auditDetail += fmt.Sprintf(" loaner_info=%s loaner_security_checked=%t", body.LoanerInfo, body.LoanerSecurityChecked)
+			}
+			c.auditRepo.Create(r.Context(), &domain.AuditLog{
+				UserID: claims.UserID, Username: claims.Username,
+				Action: "maintenance_approve", Target: id,
+				Detail: auditDetail, Module: "maintenance",
+				IPAddress: clientIP(r), UserAgent: r.UserAgent(),
+			})
 			log.Printf("[maintenance] approved: request_number=%d supervisor=%s", req.RequestNumber, operatorName)
 			writeJSON(w, map[string]interface{}{"ok": true, "status": "approved"})
 
@@ -262,12 +311,17 @@ func (c *MaintenanceController) handleByID(w http.ResponseWriter, r *http.Reques
 				return
 			}
 			var body struct {
-				ReturnDate   *string `json:"return_date"`
-				ProcessNotes string  `json:"process_notes"`
+				ReturnDate         *string `json:"return_date"`
+				ProcessNotes       string  `json:"process_notes"`
+				LoanerReturnedDate *string `json:"loaner_returned_date"`
 			}
 			json.NewDecoder(r.Body).Decode(&body)
-			returnDate := parseDatePtr(body.ReturnDate)
-			if err := c.maintRepo.Return(r.Context(), req.RequestNumber, returnDate, body.ProcessNotes); err != nil {
+			returnParams := domain.MaintenanceReturnParams{
+				ReturnDate:         parseDatePtr(body.ReturnDate),
+				ProcessNotes:       body.ProcessNotes,
+				LoanerReturnedDate: parseDatePtr(body.LoanerReturnedDate),
+			}
+			if err := c.maintRepo.Return(r.Context(), req.RequestNumber, returnParams); err != nil {
 				writeError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
@@ -275,6 +329,12 @@ func (c *MaintenanceController) handleByID(w http.ResponseWriter, r *http.Reques
 			for _, aid := range assetIDs {
 				c.assetRepo.Update(r.Context(), aid, map[string]interface{}{"asset_status": "available"})
 			}
+			c.auditRepo.Create(r.Context(), &domain.AuditLog{
+				UserID: claims.UserID, Username: claims.Username,
+				Action: "maintenance_return", Target: id,
+				Detail: fmt.Sprintf("request_number=%d", req.RequestNumber), Module: "maintenance",
+				IPAddress: clientIP(r), UserAgent: r.UserAgent(),
+			})
 			writeJSON(w, map[string]interface{}{"ok": true, "status": "returned"})
 
 		case "reject":
@@ -294,6 +354,12 @@ func (c *MaintenanceController) handleByID(w http.ResponseWriter, r *http.Reques
 				writeError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
+			c.auditRepo.Create(r.Context(), &domain.AuditLog{
+				UserID: claims.UserID, Username: claims.Username,
+				Action: "maintenance_reject", Target: id,
+				Detail: body.Reason, Module: "maintenance",
+				IPAddress: clientIP(r), UserAgent: r.UserAgent(),
+			})
 			writeJSON(w, map[string]interface{}{"ok": true, "status": "rejected"})
 
 		default:
@@ -355,6 +421,8 @@ func (c *MaintenanceController) handleExport(w http.ResponseWriter, r *http.Requ
 	headers := []string{
 		"申請單號", "申請人員", "設備名稱", "設備編號", "申請原因", "維修廠商", "維修人員",
 		"攜出日期", "歸還日期", "作業過程", "狀態", "承辦人員", "權責主管",
+		"含機敏資料", "廠商保密協議", "送修前已清除資料",
+		"替代機資訊", "替代機提供日期", "替代機已資安檢查", "替代機收回日期",
 	}
 	for col, h := range headers {
 		cell, _ := excelize.CoordinatesToCellName(col+1, 1)
@@ -374,13 +442,29 @@ func (c *MaintenanceController) handleExport(w http.ResponseWriter, r *http.Requ
 		if m.ReturnDate != nil {
 			returnDate = m.ReturnDate.Format("2006-01-02")
 		}
+		loanerProvidedDate := ""
+		if m.LoanerProvidedDate != nil {
+			loanerProvidedDate = m.LoanerProvidedDate.Format("2006-01-02")
+		}
+		loanerReturnedDate := ""
+		if m.LoanerReturnedDate != nil {
+			loanerReturnedDate = m.LoanerReturnedDate.Format("2006-01-02")
+		}
 		statusLabel := statusLabels[m.Status]
 		if statusLabel == "" {
 			statusLabel = m.Status
 		}
+		yesNo := func(b bool) string {
+			if b {
+				return "是"
+			}
+			return "否"
+		}
 		vals := []interface{}{
 			m.RequestNumber, m.ApplicantName, m.AssetName, m.AssetNumber, m.Reason, m.Vendor, m.Technician,
 			checkoutDate, returnDate, m.ProcessNotes, statusLabel, m.HandlerName, m.SupervisorName,
+			yesNo(m.ContainsSensitiveData), m.VendorNDARef, yesNo(m.DataWipedBeforeCheckout),
+			m.LoanerInfo, loanerProvidedDate, yesNo(m.LoanerSecurityChecked), loanerReturnedDate,
 		}
 		for col, v := range vals {
 			cell, _ := excelize.CoordinatesToCellName(col+1, row)

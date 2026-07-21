@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"mime"
 	"net"
 	"net/smtp"
 	"strings"
@@ -98,16 +99,24 @@ func sendWith(cfg config.SMTPConfig, to, subject, htmlBody string) error {
 		return errors.New("smtp: to/from required (became empty after sanitization)")
 	}
 
+	// RFC 5322 header lines are ASCII-only; a raw UTF-8 subject/display name
+	// (e.g. Chinese) renders as mojibake in most mail clients unless wrapped
+	// in an RFC 2047 encoded-word. mime.QEncoding.Encode is a no-op for
+	// already-ASCII input, so this is safe for English-only values too.
+	encodedSubject := mime.QEncoding.Encode("utf-8", cleanSubject)
+	encodedFromName := mime.QEncoding.Encode("utf-8", cleanFromName)
+
 	fromHeader := cleanFrom
-	if cleanFromName != "" {
-		fromHeader = fmt.Sprintf("%s <%s>", cleanFromName, cleanFrom)
+	if encodedFromName != "" {
+		fromHeader = fmt.Sprintf("%s <%s>", encodedFromName, cleanFrom)
 	}
 
 	msg := "From: " + fromHeader + "\r\n" +
 		"To: " + cleanTo + "\r\n" +
-		"Subject: " + cleanSubject + "\r\n" +
+		"Subject: " + encodedSubject + "\r\n" +
 		"MIME-Version: 1.0\r\n" +
 		"Content-Type: text/html; charset=\"UTF-8\"\r\n" +
+		"Content-Transfer-Encoding: 8bit\r\n" +
 		"\r\n" +
 		htmlBody
 

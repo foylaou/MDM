@@ -43,7 +43,6 @@ func (c *AssetController) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/assets-custody/", c.handleCustodyHistory)
 	mux.HandleFunc("/api/assets/", c.handleAssetByID)
 	mux.HandleFunc("/api/device-status", c.handleDeviceStatus)
-	mux.HandleFunc("/api/pickable-assets", c.handlePickableAssets)
 }
 
 func assetToRow(a *domain.Asset) map[string]interface{} {
@@ -250,51 +249,6 @@ func (c *AssetController) handleDeviceStatus(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	writeOK(w)
-}
-
-// handlePickableAssets godoc
-// @Summary 可選資產列表（不篩選可租借狀態，供維修/報廢申請等表單挑選資產用）
-// @Tags Asset
-// @Produce json
-// @Security BearerAuth
-// @Success 200 {object} map[string]interface{}
-// @Router /api/pickable-assets [get]
-func (c *AssetController) handlePickableAssets(w http.ResponseWriter, r *http.Request) {
-	if _, err := c.auth.RequireAuth(r); err != nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-	if !requireMethod(w, r, http.MethodGet) {
-		return
-	}
-	items, err := c.assetRepo.ListPickable(r.Context())
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	type row struct {
-		AssetID      string  `json:"asset_id"`
-		AssetNumber  string  `json:"asset_number"`
-		Name         string  `json:"name"`
-		Spec         string  `json:"spec"`
-		DeviceUdid   *string `json:"device_udid"`
-		SerialNumber string  `json:"serial_number"`
-		Model        string  `json:"model"`
-		OSVersion    string  `json:"os_version"`
-		AssetStatus  string  `json:"asset_status"`
-		CategoryID   *string `json:"category_id"`
-		CategoryName string  `json:"category_name"`
-	}
-	rows := make([]row, 0, len(items))
-	for _, it := range items {
-		rows = append(rows, row{
-			AssetID: it.AssetID, AssetNumber: it.AssetNumber, Name: it.Name, Spec: it.Spec,
-			DeviceUdid:   it.DeviceUdid,
-			SerialNumber: it.SerialNumber, Model: it.Model, OSVersion: it.OSVersion,
-			AssetStatus: it.AssetStatus, CategoryID: it.CategoryID, CategoryName: it.CategoryName,
-		})
-	}
-	writeJSON(w, map[string]interface{}{"assets": rows})
 }
 
 // handleLifecycle handles asset lifecycle transitions (dispose / transfer).

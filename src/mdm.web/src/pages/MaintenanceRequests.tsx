@@ -32,13 +32,6 @@ interface MaintenanceRequest {
   supervisor_name: string;
   reject_reason: string;
   is_archived: boolean;
-  contains_sensitive_data: boolean;
-  vendor_nda_ref: string;
-  data_wiped_before_checkout: boolean;
-  loaner_info: string;
-  loaner_provided_date: string | null;
-  loaner_security_checked: boolean;
-  loaner_returned_date: string | null;
 }
 
 interface UserOption {
@@ -92,22 +85,11 @@ export function MaintenanceRequests() {
   const [technician, setTechnician] = useState("");
   const [checkoutDate, setCheckoutDate] = useState("");
   const [returnDatePlanned, setReturnDatePlanned] = useState("");
-  const [containsSensitiveData, setContainsSensitiveData] = useState(false);
-  const [vendorNdaRef, setVendorNdaRef] = useState("");
-
-  // Approve dialog
-  const [approveTarget, setApproveTarget] = useState<MaintenanceRequest | null>(null);
-  const [approveCheckoutDate, setApproveCheckoutDate] = useState("");
-  const [approveDataWiped, setApproveDataWiped] = useState(false);
-  const [approveLoanerInfo, setApproveLoanerInfo] = useState("");
-  const [approveLoanerProvidedDate, setApproveLoanerProvidedDate] = useState("");
-  const [approveLoanerSecurityChecked, setApproveLoanerSecurityChecked] = useState(false);
 
   // Return dialog
   const [returnTarget, setReturnTarget] = useState<MaintenanceRequest | null>(null);
   const [returnDate, setReturnDate] = useState("");
   const [processNotes, setProcessNotes] = useState("");
-  const [loanerReturnedDate, setLoanerReturnedDate] = useState("");
 
   // Reject dialog
   const [rejectTarget, setRejectTarget] = useState<MaintenanceRequest | null>(null);
@@ -148,8 +130,6 @@ export function MaintenanceRequests() {
     setTechnician("");
     setCheckoutDate("");
     setReturnDatePlanned("");
-    setContainsSensitiveData(false);
-    setVendorNdaRef("");
   };
 
   const handleCreate = async () => {
@@ -162,8 +142,6 @@ export function MaintenanceRequests() {
         reason, vendor, technician,
         checkout_date: checkoutDate || null,
         return_date: returnDatePlanned || null,
-        contains_sensitive_data: containsSensitiveData,
-        vendor_nda_ref: vendorNdaRef,
       });
       setShowCreate(false);
       resetCreateForm();
@@ -190,26 +168,12 @@ export function MaintenanceRequests() {
     setRejectReason("");
   };
 
-  const openApprove = (req: MaintenanceRequest) => {
-    setApproveTarget(req);
-    setApproveCheckoutDate(req.checkout_date || new Date().toISOString().slice(0, 10));
-    setApproveDataWiped(false);
-    setApproveLoanerInfo("");
-    setApproveLoanerProvidedDate("");
-    setApproveLoanerSecurityChecked(false);
-  };
-
-  const confirmApprove = async () => {
-    if (!approveTarget) return;
+  const confirmApprove = async (req: MaintenanceRequest) => {
+    if (!(await dialog.confirm("權責主管核准，裝置將標記為維修中？"))) return;
     try {
-      await apiClient.post(`/api/maintenance-requests/${approveTarget.id}/approve`, {
-        checkout_date: approveCheckoutDate || null,
-        data_wiped_before_checkout: approveDataWiped,
-        loaner_info: approveLoanerInfo,
-        loaner_provided_date: approveLoanerProvidedDate || null,
-        loaner_security_checked: approveLoanerSecurityChecked,
+      await apiClient.post(`/api/maintenance-requests/${req.id}/approve`, {
+        checkout_date: req.checkout_date || null,
       });
-      setApproveTarget(null);
       load();
     } catch (err) {
       await dialog.error("核准失敗: " + (err instanceof Error ? err.message : ""));
@@ -220,7 +184,6 @@ export function MaintenanceRequests() {
     setReturnTarget(req);
     setReturnDate(new Date().toISOString().slice(0, 10));
     setProcessNotes("");
-    setLoanerReturnedDate(req.loaner_info ? new Date().toISOString().slice(0, 10) : "");
   };
 
   const confirmReturn = async () => {
@@ -229,7 +192,6 @@ export function MaintenanceRequests() {
       await apiClient.post(`/api/maintenance-requests/${returnTarget.id}/return`, {
         return_date: returnDate || null,
         process_notes: processNotes,
-        loaner_returned_date: loanerReturnedDate || null,
       });
       setReturnTarget(null);
       load();
@@ -269,12 +231,6 @@ export function MaintenanceRequests() {
     { headerName: "承辦人員", field: "handler_name", width: 110, valueFormatter: (p) => p.value || "-" },
     { headerName: "權責主管", field: "supervisor_name", width: 110, valueFormatter: (p) => p.value || "-" },
     {
-      headerName: "含機敏資料", field: "contains_sensitive_data", width: 110,
-      cellRenderer: (p: ICellRendererParams<MaintenanceRequest>) =>
-        p.value ? <span className="badge badge-sm badge-error">是</span> : <span className="badge badge-sm badge-ghost">否</span>,
-    },
-    { headerName: "替代機資訊", field: "loaner_info", minWidth: 140, valueFormatter: (p) => p.value || "-" },
-    {
       headerName: "操作", colId: "actions", width: 220, pinned: "right", sortable: false, filter: false,
       cellRenderer: (p: ICellRendererParams<MaintenanceRequest>) => {
         const req = p.data!;
@@ -288,7 +244,7 @@ export function MaintenanceRequests() {
             )}
             {req.status === "handler_signed" && perm.canApprove && (
               <>
-                <button onClick={() => openApprove(req)} className="btn btn-success btn-xs gap-1"><CheckCircle size={12} /> 核准</button>
+                <button onClick={() => confirmApprove(req)} className="btn btn-success btn-xs gap-1"><CheckCircle size={12} /> 核准</button>
                 <button onClick={() => doAction(req, "reject")} className="btn btn-error btn-xs gap-1"><AlertCircle size={12} /> 拒絕</button>
               </>
             )}
@@ -345,7 +301,7 @@ export function MaintenanceRequests() {
             <div className="space-y-4">
               <div className="form-control">
                 <label className="label"><span className="label-text font-medium">設備名稱及編號</span></label>
-                <AssetPicker selected={selectedAssets} onChange={setSelectedAssets} showFilters endpoint="/api/pickable-assets" />
+                <AssetPicker selected={selectedAssets} onChange={setSelectedAssets} showFilters />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="form-control">
@@ -381,16 +337,6 @@ export function MaintenanceRequests() {
                   <label className="label"><span className="label-text font-medium">預計歸還日期</span></label>
                   <input type="date" value={returnDatePlanned} onChange={(e) => setReturnDatePlanned(e.target.value)} className="input input-bordered input-sm" />
                 </div>
-                <div className="form-control">
-                  <label className="label"><span className="label-text font-medium">廠商保密協議編號</span></label>
-                  <input type="text" value={vendorNdaRef} onChange={(e) => setVendorNdaRef(e.target.value)} className="input input-bordered input-sm" placeholder="選填，作為稽核佐證" />
-                </div>
-                <div className="form-control justify-end">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" className="checkbox checkbox-sm" checked={containsSensitiveData} onChange={(e) => setContainsSensitiveData(e.target.checked)} />
-                    <span className="label-text font-medium">設備內含機敏/個資資料</span>
-                  </label>
-                </div>
               </div>
               <div className="flex gap-2">
                 <button onClick={handleCreate} disabled={creating || !applicantId || selectedAssets.length === 0} className="btn btn-success btn-sm gap-1">
@@ -415,63 +361,6 @@ export function MaintenanceRequests() {
         />
       </div>
 
-      {/* Approve dialog */}
-      <dialog className={`modal ${approveTarget ? "modal-open" : ""}`}>
-        <div className="modal-box">
-          <h3 className="font-bold text-lg">權責主管核准</h3>
-          <p className="text-sm text-base-content/60 mt-1">核准後裝置將標記為維修中；以下為送修前的資安檢核</p>
-
-          <div className="form-control mt-4">
-            <label className="label"><span className="label-text text-sm">攜出日期</span></label>
-            <input type="date" value={approveCheckoutDate} onChange={(e) => setApproveCheckoutDate(e.target.value)} className="input input-bordered input-sm" />
-          </div>
-
-          <label className="flex items-center gap-3 cursor-pointer p-2 mt-3 rounded hover:bg-base-200">
-            <input
-              type="checkbox"
-              className="checkbox checkbox-sm checkbox-success"
-              checked={approveDataWiped}
-              onChange={(e) => setApproveDataWiped(e.target.checked)}
-            />
-            <span className="text-sm">送修前已備份／已清除機敏資料</span>
-          </label>
-
-          <div className="divider my-2 text-xs opacity-50">廠商替代機（若有提供）</div>
-
-          <div className="form-control">
-            <label className="label"><span className="label-text text-sm">替代機資訊（廠牌型號/序號）</span></label>
-            <input type="text" value={approveLoanerInfo} onChange={(e) => setApproveLoanerInfo(e.target.value)} className="input input-bordered input-sm" placeholder="無提供則留空" />
-          </div>
-          {approveLoanerInfo && (
-            <>
-              <div className="form-control mt-3">
-                <label className="label"><span className="label-text text-sm">替代機提供日期</span></label>
-                <input type="date" value={approveLoanerProvidedDate} onChange={(e) => setApproveLoanerProvidedDate(e.target.value)} className="input input-bordered input-sm" />
-              </div>
-              <label className="flex items-center gap-3 cursor-pointer p-2 mt-2 rounded hover:bg-base-200">
-                <input
-                  type="checkbox"
-                  className="checkbox checkbox-sm checkbox-success"
-                  checked={approveLoanerSecurityChecked}
-                  onChange={(e) => setApproveLoanerSecurityChecked(e.target.checked)}
-                />
-                <span className="text-sm">替代機已完成資安檢查（掃毒／病毒防護確認）</span>
-              </label>
-            </>
-          )}
-
-          <div className="modal-action">
-            <button className="btn btn-sm" onClick={() => setApproveTarget(null)}>取消</button>
-            <button className="btn btn-success btn-sm gap-1" onClick={confirmApprove}>
-              <CheckCircle size={14} /> 確認核准
-            </button>
-          </div>
-        </div>
-        <form method="dialog" className="modal-backdrop">
-          <button onClick={() => setApproveTarget(null)}>close</button>
-        </form>
-      </dialog>
-
       {/* Return dialog */}
       <dialog className={`modal ${returnTarget ? "modal-open" : ""}`}>
         <div className="modal-box">
@@ -481,12 +370,6 @@ export function MaintenanceRequests() {
             <label className="label"><span className="label-text text-sm">歸還日期</span></label>
             <input type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} className="input input-bordered input-sm" />
           </div>
-          {returnTarget?.loaner_info && (
-            <div className="form-control mt-3">
-              <label className="label"><span className="label-text text-sm">替代機收回日期（{returnTarget.loaner_info}）</span></label>
-              <input type="date" value={loanerReturnedDate} onChange={(e) => setLoanerReturnedDate(e.target.value)} className="input input-bordered input-sm" />
-            </div>
-          )}
           <div className="form-control mt-3">
             <label className="label"><span className="label-text text-sm">作業過程</span></label>
             <textarea

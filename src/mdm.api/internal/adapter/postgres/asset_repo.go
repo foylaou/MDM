@@ -216,39 +216,6 @@ func (r *AssetRepo) ListRentalPickable(ctx context.Context) ([]*RentalPickableAs
 	return out, nil
 }
 
-// ListPickable returns every asset regardless of IsRentable, for picker UIs
-// (maintenance/disposal requests) that operate on the full inventory rather
-// than just the assets available for loan.
-func (r *AssetRepo) ListPickable(ctx context.Context) ([]domain.PickableAsset, error) {
-	q := `SELECT a.id, a.asset_number, a.name, COALESCE(a.spec,''),
-	             a.device_udid,
-	             COALESCE(d.serial_number,''), COALESCE(d.model,''), COALESCE(d.os_version,''),
-	             COALESCE(a.asset_status,'available') as asset_status,
-	             a.category_id, COALESCE(c.name,'')
-	      FROM assets a
-	      LEFT JOIN devices d ON a.device_udid = d.udid
-	      LEFT JOIN categories c ON a.category_id = c.id
-	      ORDER BY a.name, a.asset_number`
-	rows, err := r.pool.Query(ctx, q)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var out []domain.PickableAsset
-	for rows.Next() {
-		it := domain.PickableAsset{}
-		if err := rows.Scan(&it.AssetID, &it.AssetNumber, &it.Name, &it.Spec,
-			&it.DeviceUdid,
-			&it.SerialNumber, &it.Model, &it.OSVersion,
-			&it.AssetStatus, &it.CategoryID, &it.CategoryName); err != nil {
-			continue
-		}
-		out = append(out, it)
-	}
-	return out, nil
-}
-
 // ListAvailableByCategory returns up to `limit` asset IDs that are rentable,
 // available (status=available, not rented), and belong to the given category.
 func (r *AssetRepo) ListAvailableByCategory(ctx context.Context, categoryID string, limit int) ([]string, error) {

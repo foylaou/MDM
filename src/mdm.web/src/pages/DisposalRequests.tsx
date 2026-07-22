@@ -115,7 +115,7 @@ export function DisposalRequests() {
 
   const loadAssets = async () => {
     try {
-      const { data } = await apiClient.get("/api/pickable-assets");
+      const { data } = await apiClient.get("/api/rental-pickable-assets");
       setAssets(data.assets || []);
     } catch { /* */ }
   };
@@ -284,7 +284,7 @@ export function DisposalRequests() {
 
               <div className="form-control">
                 <label className="label"><span className="label-text font-medium">選擇資產</span></label>
-                <AssetPicker selected={selectedAssets} onChange={setSelectedAssets} showFilters endpoint="/api/pickable-assets" />
+                <AssetPicker selected={selectedAssets} onChange={setSelectedAssets} showFilters />
               </div>
 
               {selectedAssets.length > 0 && (

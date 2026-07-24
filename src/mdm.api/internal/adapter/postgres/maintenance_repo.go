@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -20,6 +19,8 @@ const maintenanceSelectColumns = `m.id, m.request_number, m.asset_id, m.applican
 	m.status, m.handler_id, m.handler_name, m.handled_at,
 	m.supervisor_id, m.supervisor_name, m.approved_at, m.reject_reason,
 	m.is_archived, m.created_at, m.updated_at,
+	m.contains_sensitive_data, m.vendor_nda_ref, m.data_wiped_before_checkout,
+	m.loaner_info, m.loaner_provided_date, m.loaner_security_checked, m.loaner_returned_date,
 	COALESCE(a.asset_number,'') as asset_number, COALESCE(a.name,'') as asset_name`
 
 const maintenanceFromJoin = `FROM maintenance_requests m LEFT JOIN assets a ON a.id = m.asset_id`
@@ -35,6 +36,8 @@ func scanMaintenance(row interface {
 		&m.Status, &handlerID, &m.HandlerName, &m.HandledAt,
 		&supervisorID, &m.SupervisorName, &m.ApprovedAt, &m.RejectReason,
 		&m.IsArchived, &m.CreatedAt, &m.UpdatedAt,
+		&m.ContainsSensitiveData, &m.VendorNDARef, &m.DataWipedBeforeCheckout,
+		&m.LoanerInfo, &m.LoanerProvidedDate, &m.LoanerSecurityChecked, &m.LoanerReturnedDate,
 		&m.AssetNumber, &m.AssetName,
 	)
 	if err != nil {
@@ -80,10 +83,12 @@ func (r *MaintenanceRepo) Create(ctx context.Context, req *domain.MaintenanceReq
 	var id string
 	err := r.pool.QueryRow(ctx,
 		`INSERT INTO maintenance_requests
-			(request_number, asset_id, applicant_id, applicant_name, reason, vendor, technician, checkout_date, return_date)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+			(request_number, asset_id, applicant_id, applicant_name, reason, vendor, technician, checkout_date, return_date,
+			 contains_sensitive_data, vendor_nda_ref)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
 		req.RequestNumber, req.AssetID, req.ApplicantID, req.ApplicantName,
 		req.Reason, req.Vendor, req.Technician, req.CheckoutDate, req.ReturnDate,
+		req.ContainsSensitiveData, req.VendorNDARef,
 	).Scan(&id)
 	return id, err
 }
@@ -107,21 +112,25 @@ func (r *MaintenanceRepo) SignByHandler(ctx context.Context, requestNumber int, 
 	return err
 }
 
-func (r *MaintenanceRepo) ApproveBySupervisor(ctx context.Context, requestNumber int, supervisorID string, supervisorName string, checkoutDate *time.Time) error {
+func (r *MaintenanceRepo) ApproveBySupervisor(ctx context.Context, requestNumber int, params domain.MaintenanceApproveParams) error {
 	_, err := r.pool.Exec(ctx,
 		`UPDATE maintenance_requests SET status='approved', supervisor_id=$1, supervisor_name=$2, approved_at=now(),
-		 checkout_date=COALESCE($3, checkout_date), updated_at=now()
-		 WHERE request_number=$4 AND status='handler_signed'`,
-		supervisorID, supervisorName, checkoutDate, requestNumber)
+		 checkout_date=COALESCE($3, checkout_date),
+		 data_wiped_before_checkout=$4, loaner_info=$5, loaner_provided_date=$6, loaner_security_checked=$7,
+		 updated_at=now()
+		 WHERE request_number=$8 AND status='handler_signed'`,
+		params.SupervisorID, params.SupervisorName, params.CheckoutDate,
+		params.DataWipedBeforeCheckout, params.LoanerInfo, params.LoanerProvidedDate, params.LoanerSecurityChecked,
+		requestNumber)
 	return err
 }
 
-func (r *MaintenanceRepo) Return(ctx context.Context, requestNumber int, returnDate *time.Time, processNotes string) error {
+func (r *MaintenanceRepo) Return(ctx context.Context, requestNumber int, params domain.MaintenanceReturnParams) error {
 	_, err := r.pool.Exec(ctx,
 		`UPDATE maintenance_requests SET status='returned', return_date=COALESCE($1, return_date),
-		 process_notes=$2, updated_at=now()
-		 WHERE request_number=$3 AND status='approved'`,
-		returnDate, processNotes, requestNumber)
+		 process_notes=$2, loaner_returned_date=COALESCE($3, loaner_returned_date), updated_at=now()
+		 WHERE request_number=$4 AND status='approved'`,
+		params.ReturnDate, params.ProcessNotes, params.LoanerReturnedDate, requestNumber)
 	return err
 }
 

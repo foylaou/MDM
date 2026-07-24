@@ -8,6 +8,7 @@ import (
 	"log"
 	"mime"
 	"net"
+	"net/mail"
 	"net/smtp"
 	"strings"
 	"sync"
@@ -15,13 +16,34 @@ import (
 	"github.com/anthropics/mdm-server/internal/config"
 )
 
-// sanitizeHeader strips CR, LF, and NUL from a header value. Without this an
-// attacker who controls `to` or `subject` can inject extra SMTP headers
-// (Bcc, Reply-To, even a full second body) by embedding "\r\nBcc: ..." in
-// their input — a textbook SMTP header injection.
-func sanitizeHeader(v string) string {
-	r := strings.NewReplacer("\r", "", "\n", "", "\x00", "")
-	return r.Replace(v)
+// sanitizeHeaderValue rejects a header value that could inject a second
+// header or body (an attacker who controls `subject` or a display name
+// embedding "\r\nBcc: ..." can otherwise smuggle extra SMTP headers — a
+// textbook header injection). Reject-and-fail rather than silently
+// stripping: a value that needed cleaning indicates the input didn't come
+// from where the caller expected, and sending it anyway (even cleaned)
+// risks masking that.
+func sanitizeHeaderValue(v string) (string, error) {
+	if strings.ContainsAny(v, "\r\n") {
+		return "", errors.New("smtp: header value contains invalid newline characters")
+	}
+	return v, nil
+}
+
+// sanitizeEmailAddress validates that v is a well-formed RFC 5322 address —
+// stronger than sanitizeHeaderValue's bare CRLF check — and returns just the
+// bare address, discarding any display-name portion the caller may have
+// embedded (which is itself a header-injection vector for the To:/From:
+// envelope lines).
+func sanitizeEmailAddress(v string) (string, error) {
+	if strings.ContainsAny(v, "\r\n") {
+		return "", errors.New("smtp: email address contains invalid newline characters")
+	}
+	addr, err := mail.ParseAddress(v)
+	if err != nil {
+		return "", fmt.Errorf("smtp: invalid email address: %w", err)
+	}
+	return addr.Address, nil
 }
 
 // Sender implements port.EmailSender via SMTP. It holds a mutable config so
@@ -99,14 +121,27 @@ type builtMessage struct {
 // names. Pulled out of sendWith so it can be unit tested without a network
 // round-trip.
 func buildMessage(cfg config.SMTPConfig, to, subject, htmlBody string) (builtMessage, error) {
-	// Sanitize every value that ends up on a header line to block CRLF
-	// injection. The body itself is the only place CRLF is allowed.
-	cleanTo := sanitizeHeader(to)
-	cleanSubject := sanitizeHeader(subject)
-	cleanFrom := sanitizeHeader(cfg.From)
-	cleanFromName := sanitizeHeader(cfg.FromName)
-	if cleanTo == "" || cleanFrom == "" {
-		return builtMessage{}, errors.New("smtp: to/from required (became empty after sanitization)")
+	// Validate every value that ends up on a header line — reject rather than
+	// silently strip, since a value that needed cleaning means the input
+	// didn't look like what we expected. `to`/`From` go through full RFC 5322
+	// address validation (net/mail); free-text header values (subject, the
+	// display name) only need the CRLF check since any other content is a
+	// legal header value.
+	cleanTo, err := sanitizeEmailAddress(to)
+	if err != nil {
+		return builtMessage{}, err
+	}
+	cleanFrom, err := sanitizeEmailAddress(cfg.From)
+	if err != nil {
+		return builtMessage{}, err
+	}
+	cleanSubject, err := sanitizeHeaderValue(subject)
+	if err != nil {
+		return builtMessage{}, err
+	}
+	cleanFromName, err := sanitizeHeaderValue(cfg.FromName)
+	if err != nil {
+		return builtMessage{}, err
 	}
 
 	// RFC 5322 header lines are ASCII-only; a raw UTF-8 subject/display name

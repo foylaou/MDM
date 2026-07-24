@@ -266,7 +266,7 @@ func main() {
 	// Register REST controllers
 	controller.RegisterAll(mux,
 		controller.NewSystemController(pool, cfg),
-		controller.NewAuthController(userRepo, authHelper, cfg.JWTSecret),
+		controller.NewAuthController(userRepo, authHelper, cfg.JWTSecret, cfg.CookieSecure),
 		controller.NewSSOController(cfg, userRepo, ssoSettingsRepo, authHelper),
 		// Wrap *DEPScheduler in an explicit interface var so the controller's
 		// `if scheduler == nil` check works. Passing the concrete *Scheduler

@@ -13,6 +13,12 @@ type Config struct {
 	ListenAddr   string
 	DatabaseURL  string
 	JWTSecret    string
+	// CookieSecure sets the Secure flag on the auth cookie. Defaults to true
+	// (fail-safe) — local HTTP development must explicitly opt out via
+	// COOKIE_SECURE=false, since browsers refuse to send a Secure cookie over
+	// plain HTTP and a wrong default in the other direction would silently
+	// ship an unprotected session cookie to production.
+	CookieSecure bool
 	MicroMDMURL  string
 	MicroMDMKey  string
 	VPPTokenPath string
@@ -65,6 +71,7 @@ func Load() *Config {
 		ListenAddr:   envOr("LISTEN_ADDR", ":8080"),
 		DatabaseURL:  envOr("DATABASE_URL", "postgres://mdm:mdm@localhost:5432/mdm?sslmode=disable"),
 		JWTSecret:    envOr("JWT_SECRET", "change-me-in-production"),
+		CookieSecure: envOr("COOKIE_SECURE", "true") == "true",
 		MicroMDMURL:  envOr("MICROMDM_URL", ""),
 		MicroMDMKey:  envOr("MICROMDM_API_KEY", ""),
 		VPPTokenPath: envOr("VPP_TOKEN_PATH", ""),

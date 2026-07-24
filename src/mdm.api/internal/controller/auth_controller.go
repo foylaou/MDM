@@ -10,31 +10,28 @@ import (
 )
 
 type AuthController struct {
-	userRepo   port.UserRepository
-	authHelper *middleware.AuthHelper
-	jwtSecret  string
+	userRepo     port.UserRepository
+	authHelper   *middleware.AuthHelper
+	jwtSecret    string
+	cookieSecure bool
 }
 
-func NewAuthController(userRepo port.UserRepository, authHelper *middleware.AuthHelper, jwtSecret string) *AuthController {
-	return &AuthController{userRepo: userRepo, authHelper: authHelper, jwtSecret: jwtSecret}
+// NewAuthController takes cookieSecure explicitly (from config.CookieSecure,
+// COOKIE_SECURE env var, defaults true) rather than inferring it from the
+// request's TLS state or X-Forwarded-Proto header. Inferring from the
+// request is fragile — it silently does the wrong thing if a reverse proxy
+// is misconfigured or absent — whereas an explicit, fail-safe-default flag
+// makes the security posture a deliberate operator decision instead of an
+// implicit one, and only needs overriding (COOKIE_SECURE=false) for local
+// HTTP development.
+func NewAuthController(userRepo port.UserRepository, authHelper *middleware.AuthHelper, jwtSecret string, cookieSecure bool) *AuthController {
+	return &AuthController{userRepo: userRepo, authHelper: authHelper, jwtSecret: jwtSecret, cookieSecure: cookieSecure}
 }
 
 func (c *AuthController) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/login", c.handleLogin)
 	mux.HandleFunc("/api/logout", c.handleLogout)
 	mux.HandleFunc("/api/me", c.handleMe)
-}
-
-// isSecureRequest reports whether the request reached us over HTTPS, either
-// directly (r.TLS) or via a reverse proxy that set X-Forwarded-Proto=https.
-// We use this to set Cookie.Secure dynamically so dev (HTTP localhost) keeps
-// working while production (mdm.isha.net behind TLS) gets a properly-protected
-// cookie that browsers refuse to send over plain HTTP.
-func isSecureRequest(r *http.Request) bool {
-	if r.TLS != nil {
-		return true
-	}
-	return r.Header.Get("X-Forwarded-Proto") == "https"
 }
 
 // handleLogin godoc
@@ -84,7 +81,7 @@ func (c *AuthController) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Value:    access,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   isSecureRequest(r),
+		Secure:   c.cookieSecure,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   24 * 60 * 60,
 	})
@@ -114,7 +111,7 @@ func (c *AuthController) handleLogin(w http.ResponseWriter, r *http.Request) {
 func (c *AuthController) handleLogout(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name: middleware.CookieName, Value: "", Path: "/",
-		HttpOnly: true, Secure: isSecureRequest(r), MaxAge: -1,
+		HttpOnly: true, Secure: c.cookieSecure, MaxAge: -1,
 	})
 	writeJSON(w, map[string]bool{"ok": true})
 }

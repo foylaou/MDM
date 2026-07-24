@@ -65,32 +65,64 @@ func TestBuildMessage_ASCIIOnlyPassesThroughUnencoded(t *testing.T) {
 	}
 }
 
-func TestBuildMessage_SanitizesHeaderInjection(t *testing.T) {
+func TestBuildMessage_RejectsHeaderInjectionInSubject(t *testing.T) {
 	cfg := config.SMTPConfig{From: "noreply@example.com"}
 
-	built, err := buildMessage(cfg, "user@example.com", "Subject\r\nBcc: attacker@evil.com", "body")
-	if err != nil {
-		t.Fatalf("buildMessage: %v", err)
-	}
-	msg := string(built.Data)
-
-	// "Bcc:" as text within the Subject value is harmless; what must NOT
-	// happen is the CRLF surviving to start an actual new header line.
-	if strings.Contains(headerSection(msg), "\r\nBcc:") {
-		t.Errorf("CRLF in subject should be stripped, not allowed to inject a new header line:\n%s", msg)
-	}
-	wantHeaderLines := 6 // From, To, Subject, MIME-Version, Content-Type, Content-Transfer-Encoding
-	if got := len(strings.Split(headerSection(msg), "\r\n")); got != wantHeaderLines {
-		t.Errorf("expected exactly %d header lines (no injected extras), got %d:\n%s", wantHeaderLines, got, msg)
+	// A CRLF in the subject is a header-injection attempt (e.g. smuggling a
+	// Bcc: line). buildMessage must refuse to send rather than silently
+	// stripping and sending anyway — a value that needed cleaning means the
+	// input didn't come from where the caller expected.
+	if _, err := buildMessage(cfg, "user@example.com", "Subject\r\nBcc: attacker@evil.com", "body"); err == nil {
+		t.Error("expected buildMessage to reject a subject containing CRLF, not silently clean it")
 	}
 }
 
-func TestBuildMessage_RequiresToAndFrom(t *testing.T) {
-	if _, err := buildMessage(config.SMTPConfig{From: "noreply@example.com"}, "", "s", "b"); err == nil {
-		t.Error("expected error when to is empty")
+func TestBuildMessage_RejectsHeaderInjectionInFromName(t *testing.T) {
+	cfg := config.SMTPConfig{From: "noreply@example.com", FromName: "MDM\r\nBcc: attacker@evil.com"}
+
+	if _, err := buildMessage(cfg, "user@example.com", "Subject", "body"); err == nil {
+		t.Error("expected buildMessage to reject a From display name containing CRLF")
 	}
-	if _, err := buildMessage(config.SMTPConfig{}, "user@example.com", "s", "b"); err == nil {
-		t.Error("expected error when from is empty")
+}
+
+func TestBuildMessage_RejectsInvalidEmailAddresses(t *testing.T) {
+	cases := []struct {
+		name string
+		to   string
+		from string
+	}{
+		{"empty to", "", "noreply@example.com"},
+		{"empty from", "user@example.com", ""},
+		{"malformed to", "not-an-email", "noreply@example.com"},
+		{"malformed from", "user@example.com", "not-an-email"},
+		{"CRLF in to", "user@example.com\r\nBcc: attacker@evil.com", "noreply@example.com"},
+		{"CRLF in from", "user@example.com", "noreply@example.com\r\nBcc: attacker@evil.com"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if _, err := buildMessage(config.SMTPConfig{From: c.from}, c.to, "s", "b"); err == nil {
+				t.Errorf("expected buildMessage to reject %s (to=%q, from=%q)", c.name, c.to, c.from)
+			}
+		})
+	}
+}
+
+func TestBuildMessage_AcceptsAddressWithDisplayNameAndUsesBareAddress(t *testing.T) {
+	// net/mail.ParseAddress accepts "Name <addr>" form; buildMessage should
+	// extract just the bare address for the To:/From: envelope rather than
+	// carrying the caller-supplied display name through unchanged (that
+	// display-name portion is itself an injection vector).
+	cfg := config.SMTPConfig{From: "Ops Team <noreply@example.com>"}
+
+	built, err := buildMessage(cfg, "A User <user@example.com>", "s", "b")
+	if err != nil {
+		t.Fatalf("buildMessage: %v", err)
+	}
+	if built.To != "user@example.com" {
+		t.Errorf("expected bare To address, got %q", built.To)
+	}
+	if built.From != "noreply@example.com" {
+		t.Errorf("expected bare From address, got %q", built.From)
 	}
 }
 

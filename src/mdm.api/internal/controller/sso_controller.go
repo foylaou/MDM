@@ -169,7 +169,7 @@ func (c *SSOController) handleStart(w http.ResponseWriter, r *http.Request) {
 
 	http.SetCookie(w, &http.Cookie{
 		Name: ssoStateCookie, Value: state, Path: "/",
-		HttpOnly: true, Secure: isSecureRequest(r),
+		HttpOnly: true, Secure: c.cfg.CookieSecure,
 		MaxAge: 600, SameSite: http.SameSiteLaxMode,
 	})
 
@@ -259,7 +259,7 @@ func (c *SSOController) handleCallback(w http.ResponseWriter, r *http.Request) {
 
 	http.SetCookie(w, &http.Cookie{
 		Name: middleware.CookieName, Value: access, Path: "/",
-		HttpOnly: true, Secure: isSecureRequest(r),
+		HttpOnly: true, Secure: c.cfg.CookieSecure,
 		SameSite: http.SameSiteLaxMode, MaxAge: 24 * 60 * 60,
 	})
 	http.Redirect(w, r, "/dashboard", http.StatusFound)

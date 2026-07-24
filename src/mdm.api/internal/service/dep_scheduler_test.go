@@ -86,6 +86,13 @@ func (r *fakeRepo) ListSerials(_ context.Context) (map[string]bool, error) {
 	return out, nil
 }
 
+func (r *fakeRepo) Delete(_ context.Context, serial string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.stored, serial)
+	return nil
+}
+
 // ── helpers ───────────────────────────────────────────────────────────
 
 func writeTemplate(t *testing.T, dir, family string, content map[string]interface{}) {

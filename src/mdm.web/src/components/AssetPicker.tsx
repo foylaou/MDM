@@ -23,6 +23,10 @@ interface AssetPickerProps {
   selected: string[];                   // asset_ids
   onChange: (assetIds: string[]) => void;
   showFilters?: boolean;
+  /** Source endpoint for the pickable list. Defaults to the rentable-only
+   * rental picker; pass "/api/pickable-assets" to show every asset
+   * regardless of its "可租借" flag (e.g. maintenance/disposal requests). */
+  endpoint?: string;
 }
 
 const statusConfig: Record<string, { label: string; color: string }> = {
@@ -36,7 +40,7 @@ const statusConfig: Record<string, { label: string; color: string }> = {
   transferred: { label: "移撥",   color: "badge-ghost" },
 };
 
-export function AssetPicker({ selected, onChange, showFilters }: AssetPickerProps) {
+export function AssetPicker({ selected, onChange, showFilters, endpoint = "/api/rental-pickable-assets" }: AssetPickerProps) {
   const { t } = useTranslation();
   const [assets, setAssets] = useState<AssetItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,11 +53,11 @@ export function AssetPicker({ selected, onChange, showFilters }: AssetPickerProp
 
   useEffect(() => {
     setLoading(true);
-    apiClient.get("/api/rental-pickable-assets")
+    apiClient.get(endpoint)
       .then(({ data }) => setAssets(data.assets || []))
       .catch((err) => console.error("AssetPicker load:", err))
       .finally(() => setLoading(false));
-  }, []);
+  }, [endpoint]);
 
   useEffect(() => {
     if (showFilters) {

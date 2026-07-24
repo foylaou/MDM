@@ -3,7 +3,10 @@ FROM node:22-alpine AS builder
 # specific pnpm version) so CI doesn't surprise-break on pnpm@latest releases.
 RUN corepack enable
 WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
+# pnpm-workspace.yaml holds the modern `overrides` config (pnpm v10+ ignores
+# `pnpm.overrides` in package.json). It MUST be copied here, otherwise pnpm
+# sees no overrides while the lockfile records them → LOCKFILE_CONFIG_MISMATCH.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY . .
 ARG VITE_AG_GRID_LICENSE

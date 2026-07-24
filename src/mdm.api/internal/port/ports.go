@@ -57,9 +57,6 @@ type VPPClient interface {
 type AssetRepository interface {
 	IsCustodianOfAll(ctx context.Context, userID string, udids []string) (bool, error)
 	List(ctx context.Context, deviceUdid string) ([]*domain.Asset, error)
-	// ListPickable returns every asset (rentable or not) for picker UIs that
-	// need the full inventory, e.g. maintenance/disposal requests.
-	ListPickable(ctx context.Context) ([]domain.PickableAsset, error)
 	GetByID(ctx context.Context, id string) (*domain.Asset, error)
 	GetByDeviceUdid(ctx context.Context, udid string) (*domain.Asset, error)
 	Create(ctx context.Context, asset *domain.Asset) (string, error)
@@ -124,8 +121,8 @@ type MaintenanceRepository interface {
 	GetByID(ctx context.Context, id string) (*domain.MaintenanceRequest, error)
 	NextRequestNumber(ctx context.Context) (int, error)
 	SignByHandler(ctx context.Context, requestNumber int, handlerID string, handlerName string) error
-	ApproveBySupervisor(ctx context.Context, requestNumber int, params domain.MaintenanceApproveParams) error
-	Return(ctx context.Context, requestNumber int, params domain.MaintenanceReturnParams) error
+	ApproveBySupervisor(ctx context.Context, requestNumber int, supervisorID string, supervisorName string, checkoutDate *time.Time) error
+	Return(ctx context.Context, requestNumber int, returnDate *time.Time, processNotes string) error
 	Reject(ctx context.Context, requestNumber int, reason string) error
 	DeleteByNumber(ctx context.Context, requestNumber int) error
 	Archive(ctx context.Context, ids []string) error

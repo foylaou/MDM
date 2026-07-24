@@ -3,7 +3,9 @@ package controller
 import (
 	"net/http"
 	"strconv"
+	"time"
 
+	"github.com/anthropics/mdm-server/internal/domain"
 	"github.com/anthropics/mdm-server/internal/middleware"
 	"github.com/anthropics/mdm-server/internal/port"
 )
@@ -19,6 +21,26 @@ func NewNotificationController(notifRepo port.NotificationRepository, auth *midd
 
 func (c *NotificationController) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/notifications", c.handleNotifications)
+}
+
+// notificationToRow converts the domain struct (PascalCase Go fields) into
+// the snake_case JSON shape the frontend expects — matches assetToRow /
+// maintenanceToRow / disposalToRow elsewhere in this package. Encoding the
+// struct directly (as this endpoint used to do) sends keys like "CreatedAt"
+// instead of "created_at", so every field the UI reads comes back undefined.
+func notificationToRow(n *domain.Notification) map[string]interface{} {
+	row := map[string]interface{}{
+		"id": n.ID, "type": n.Type, "event": n.Event,
+		"recipient": n.Recipient, "subject": n.Subject, "body": n.Body,
+		"status": n.Status, "error_message": n.ErrorMessage, "reference_id": n.ReferenceID,
+		"created_at": n.CreatedAt.Format(time.RFC3339),
+	}
+	if n.SentAt != nil {
+		row["sent_at"] = n.SentAt.Format(time.RFC3339)
+	} else {
+		row["sent_at"] = nil
+	}
+	return row
 }
 
 // handleNotifications godoc
@@ -50,5 +72,9 @@ func (c *NotificationController) handleNotifications(w http.ResponseWriter, r *h
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, map[string]interface{}{"notifications": notifs})
+	rows := make([]map[string]interface{}, 0, len(notifs))
+	for _, n := range notifs {
+		rows = append(rows, notificationToRow(n))
+	}
+	writeJSON(w, map[string]interface{}{"notifications": rows})
 }

@@ -40,6 +40,59 @@ interface UserOption {
   display_name: string;
 }
 
+// One申請單號 (request_number) can cover multiple assets, which arrive from
+// the API as one flat row per asset all sharing the same request_number —
+// mirrors how Rentals groups by rental_number. Group them so the grid shows
+// one row per application with an expandable asset list, instead of
+// repeating the same request-level fields once per asset.
+interface MaintenanceGroup {
+  request_number: number;
+  requests: MaintenanceRequest[];
+  applicant_name: string;
+  reason: string;
+  vendor: string;
+  technician: string;
+  checkout_date: string | null;
+  return_date: string | null;
+  status: string;
+  handler_name: string;
+  supervisor_name: string;
+  is_archived: boolean;
+  contains_sensitive_data: boolean;
+  loaner_info: string;
+}
+
+function groupByRequestNumber(requests: MaintenanceRequest[]): MaintenanceGroup[] {
+  const map = new Map<number, MaintenanceRequest[]>();
+  for (const r of requests) {
+    const list = map.get(r.request_number) || [];
+    list.push(r);
+    map.set(r.request_number, list);
+  }
+  const groups: MaintenanceGroup[] = [];
+  for (const [num, items] of map) {
+    const first = items[0];
+    groups.push({
+      request_number: num,
+      requests: items,
+      applicant_name: first.applicant_name,
+      reason: first.reason,
+      vendor: first.vendor,
+      technician: first.technician,
+      checkout_date: first.checkout_date,
+      return_date: first.return_date,
+      status: first.status,
+      handler_name: first.handler_name,
+      supervisor_name: first.supervisor_name,
+      is_archived: first.is_archived,
+      contains_sensitive_data: first.contains_sensitive_data,
+      loaner_info: first.loaner_info,
+    });
+  }
+  groups.sort((a, b) => b.request_number - a.request_number);
+  return groups;
+}
+
 const statusConfig: Record<string, { label: string; badge: string; icon: React.ReactNode }> = {
   pending:        { label: "待承辦",   badge: "badge-warning", icon: <Clock size={14} /> },
   handler_signed: { label: "待主管核准", badge: "badge-info",    icon: <PenLine size={14} /> },
@@ -94,6 +147,8 @@ export function MaintenanceRequests() {
   // Reject dialog
   const [rejectTarget, setRejectTarget] = useState<MaintenanceRequest | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+
+  const groups = useMemo(() => groupByRequestNumber(requests), [requests]);
 
   const load = async () => {
     setLoading(true);
@@ -211,29 +266,70 @@ export function MaintenanceRequests() {
     }
   };
 
-  const columnDefs = useMemo<ColDef<MaintenanceRequest>[]>(() => [
-    { headerName: "申請單號", field: "request_number", width: 100, cellClass: "font-mono text-sm font-medium" },
-    { headerName: "設備名稱", field: "asset_name", minWidth: 140, valueFormatter: (p) => p.value || "-" },
-    { headerName: "設備編號", field: "asset_number", width: 130, cellClass: "font-mono text-xs" },
-    { headerName: "申請人員", field: "applicant_name", width: 110 },
-    { headerName: "申請原因", field: "reason", minWidth: 140, valueFormatter: (p) => p.value || "-" },
-    { headerName: "維修廠商", field: "vendor", width: 120, valueFormatter: (p) => p.value || "-" },
-    { headerName: "維修人員", field: "technician", width: 110, valueFormatter: (p) => p.value || "-" },
-    { headerName: "攜出日期", field: "checkout_date", width: 110, valueFormatter: (p) => p.value || "-" },
-    { headerName: "歸還日期", field: "return_date", width: 110, valueFormatter: (p) => p.value || "-" },
-    {
+  const columnDefs = useMemo<ColDef<MaintenanceGroup>[]>(() => {
+    const defs: ColDef<MaintenanceGroup>[] = [];
+    defs.push({
+      headerName: "",
+      colId: "expand",
+      width: 44,
+      sortable: false,
+      filter: false,
+      resizable: false,
+      cellRenderer: "agGroupCellRenderer",
+      cellRendererParams: { suppressCount: true },
+      cellRendererSelector: (p) => p.data!.requests.length > 1
+        ? { component: "agGroupCellRenderer", params: { suppressCount: true } }
+        : undefined,
+    });
+    defs.push({ headerName: "申請單號", field: "request_number", width: 100, cellClass: "font-mono text-sm font-medium" });
+    defs.push({
+      headerName: "設備", colId: "asset", minWidth: 180,
+      valueGetter: (p) => {
+        const r = p.data?.requests[0];
+        return r?.asset_name || r?.asset_number || "";
+      },
+      cellRenderer: (p: ICellRendererParams<MaintenanceGroup>) => {
+        const first = p.data!.requests[0];
+        const primary = first.asset_name || first.asset_number || "-";
+        const secondary = first.asset_number;
+        return p.data!.requests.length > 1 ? (
+          <div>
+            <span className="font-medium">{primary}</span>
+            <span className="badge badge-sm badge-outline ml-1">共 {p.data!.requests.length} 件</span>
+          </div>
+        ) : (
+          <div>
+            <div className="font-medium">{primary}</div>
+            <div className="text-xs opacity-50 font-mono">{secondary}</div>
+          </div>
+        );
+      },
+    });
+    defs.push({ headerName: "申請人員", field: "applicant_name", width: 110 });
+    defs.push({ headerName: "申請原因", field: "reason", minWidth: 140, valueFormatter: (p) => p.value || "-" });
+    defs.push({ headerName: "維修廠商", field: "vendor", width: 120, valueFormatter: (p) => p.value || "-" });
+    defs.push({ headerName: "維修人員", field: "technician", width: 110, valueFormatter: (p) => p.value || "-" });
+    defs.push({ headerName: "攜出日期", field: "checkout_date", width: 110, valueFormatter: (p) => p.value || "-" });
+    defs.push({ headerName: "歸還日期", field: "return_date", width: 110, valueFormatter: (p) => p.value || "-" });
+    defs.push({
       headerName: "狀態", field: "status", width: 120,
-      cellRenderer: (p: ICellRendererParams<MaintenanceRequest>) => {
+      cellRenderer: (p: ICellRendererParams<MaintenanceGroup>) => {
         const sc = statusConfig[p.value as string] || statusConfig.pending;
         return <span className={`badge badge-sm gap-1 ${sc.badge}`}>{sc.icon} {sc.label}</span>;
       },
-    },
-    { headerName: "承辦人員", field: "handler_name", width: 110, valueFormatter: (p) => p.value || "-" },
-    { headerName: "權責主管", field: "supervisor_name", width: 110, valueFormatter: (p) => p.value || "-" },
-    {
+    });
+    defs.push({ headerName: "承辦人員", field: "handler_name", width: 110, valueFormatter: (p) => p.value || "-" });
+    defs.push({ headerName: "權責主管", field: "supervisor_name", width: 110, valueFormatter: (p) => p.value || "-" });
+    defs.push({
+      headerName: "含機敏資料", field: "contains_sensitive_data", width: 110,
+      cellRenderer: (p: ICellRendererParams<MaintenanceGroup>) =>
+        p.value ? <span className="badge badge-sm badge-error">是</span> : <span className="badge badge-sm badge-ghost">否</span>,
+    });
+    defs.push({ headerName: "替代機資訊", field: "loaner_info", minWidth: 140, valueFormatter: (p) => p.value || "-" });
+    defs.push({
       headerName: "操作", colId: "actions", width: 220, pinned: "right", sortable: false, filter: false,
-      cellRenderer: (p: ICellRendererParams<MaintenanceRequest>) => {
-        const req = p.data!;
+      cellRenderer: (p: ICellRendererParams<MaintenanceGroup>) => {
+        const req = p.data!.requests[0];
         return (
           <div className="flex gap-1 h-full items-center">
             {req.status === "pending" && perm.canOperate && (
@@ -254,9 +350,25 @@ export function MaintenanceRequests() {
           </div>
         );
       },
-    },
+    });
+    return defs;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [perm.canOperate, perm.canApprove]);
+  }, [perm.canOperate, perm.canApprove]);
+
+  const detailCellRendererParams = useMemo(() => ({
+    detailGridOptions: {
+      columnDefs: [
+        { headerName: "#", valueGetter: (p: any) => (p.node?.rowIndex ?? 0) + 1, width: 60 },
+        { headerName: "設備名稱", flex: 1, valueGetter: (p: any) => p.data?.asset_name || "-" },
+        { headerName: "設備編號", flex: 1, cellClass: "font-mono text-xs", valueGetter: (p: any) => p.data?.asset_number || "-" },
+      ] as ColDef<MaintenanceRequest>[],
+      defaultColDef: { sortable: false, filter: false, resizable: true },
+      domLayout: "autoHeight" as const,
+      headerHeight: 32,
+      rowHeight: 32,
+    },
+    getDetailRowData: (p: any) => { p.successCallback((p.data as MaintenanceGroup).requests); },
+  }), []);
 
   return (
     <div className="space-y-4">
@@ -351,12 +463,16 @@ export function MaintenanceRequests() {
       )}
 
       <div className="card bg-base-100 shadow p-2">
-        <DataGrid<MaintenanceRequest>
-          rowData={requests}
+        <DataGrid<MaintenanceGroup>
+          rowData={groups}
           columnDefs={columnDefs}
           loading={loading}
-          getRowId={(p) => p.data.id}
+          getRowId={(p) => String(p.data.request_number)}
           overlayNoRowsTemplate={`<span class="opacity-50">尚無維修申請記錄</span>`}
+          masterDetail
+          isRowMaster={(data) => data.requests.length > 1}
+          detailCellRendererParams={detailCellRendererParams}
+          detailRowAutoHeight
           getRowClass={(p) => p.data?.is_archived ? "opacity-50" : ""}
         />
       </div>

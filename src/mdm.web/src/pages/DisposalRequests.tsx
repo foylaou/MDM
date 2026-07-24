@@ -195,6 +195,17 @@ export function DisposalRequests() {
   };
 
   const columnDefs = useMemo<ColDef<DisposalRequest>[]>(() => [
+    {
+      headerName: "",
+      colId: "expand",
+      width: 44,
+      sortable: false,
+      filter: false,
+      resizable: false,
+      cellRendererSelector: (p) => (p.data?.items.length ?? 0) > 1
+        ? { component: "agGroupCellRenderer", params: { suppressCount: true } }
+        : undefined,
+    },
     { headerName: "申請單號", field: "request_number", width: 100, cellClass: "font-mono text-sm font-medium" },
     { headerName: "申請人員", field: "applicant_name", width: 120 },
     {
@@ -228,6 +239,30 @@ export function DisposalRequests() {
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [perm.canApprove]);
+
+  const detailCellRendererParams = useMemo(() => ({
+    detailGridOptions: {
+      columnDefs: [
+        { headerName: "NO", valueGetter: (p: any) => p.data?.line_no, width: 60 },
+        { headerName: "資產名稱", flex: 1, valueGetter: (p: any) => p.data?.asset_name || "-" },
+        { headerName: "資產編號", flex: 1, cellClass: "font-mono text-xs", valueGetter: (p: any) => p.data?.asset_number || "-" },
+        { headerName: "報廢日期", width: 110, valueGetter: (p: any) => p.data?.dispose_date || "-" },
+        { headerName: "報廢原因", flex: 1, valueGetter: (p: any) => p.data?.dispose_reason || "-" },
+        {
+          headerName: "資料清除檢核", width: 110,
+          cellRenderer: (p: ICellRendererParams<DisposalItem>) =>
+            p.data?.data_wipe_checked
+              ? <Check size={14} className="text-success" />
+              : <X size={14} className="text-error" />,
+        },
+      ] as ColDef<DisposalItem>[],
+      defaultColDef: { sortable: false, filter: false, resizable: true },
+      domLayout: "autoHeight" as const,
+      headerHeight: 32,
+      rowHeight: 32,
+    },
+    getDetailRowData: (p: any) => { p.successCallback((p.data as DisposalRequest).items); },
+  }), []);
 
   return (
     <div className="space-y-4">
@@ -361,6 +396,10 @@ export function DisposalRequests() {
           loading={loading}
           getRowId={(p) => p.data.id}
           overlayNoRowsTemplate={`<span class="opacity-50">尚無報廢申請記錄</span>`}
+          masterDetail
+          isRowMaster={(data) => data.items.length > 1}
+          detailCellRendererParams={detailCellRendererParams}
+          detailRowAutoHeight
           getRowClass={(p) => p.data?.is_archived ? "opacity-50" : ""}
         />
       </div>

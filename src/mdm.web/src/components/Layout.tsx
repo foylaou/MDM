@@ -1,4 +1,4 @@
-import { Link, Outlet, useLocation } from "react-router-dom";
+import { Link, Outlet, useLocation } from "react-router";
 import { useAuthStore } from "../stores/authStore";
 import { useEventStore } from "../stores/eventStore";
 import { useEventStream } from "../hooks/useEventStream";

@@ -1,4 +1,4 @@
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 import { useAuthStore } from '../stores/authStore';
 import { useDriverOnboarding, type Role, type OnboardingContext, type StepDef } from '../hooks/useDriverOnboarding';
 import { tourStepsByScope } from '../tours/viewerTours';

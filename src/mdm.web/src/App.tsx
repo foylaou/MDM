@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router";
 import { AgGridProvider } from "ag-grid-react";
 import { AllEnterpriseModule, IntegratedChartsModule } from "ag-grid-enterprise";
 
@@ -28,7 +28,7 @@ import { Notifications } from "./pages/Notifications";
 import { Settings } from "./pages/Settings";
 import { DEPTemplates } from "./pages/DEPTemplates";
 import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams } from "react-router";
 
 function DeviceRedirect() {
   const { udid } = useParams();

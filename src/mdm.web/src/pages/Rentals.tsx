@@ -359,9 +359,6 @@ export function Rentals() {
       resizable: false,
       cellRenderer: "agGroupCellRenderer",
       cellRendererParams: { suppressCount: true },
-      cellRendererSelector: (p) => p.data!.rentals.length > 1
-        ? { component: "agGroupCellRenderer", params: { suppressCount: true } }
-        : undefined,
     });
     defs.push({
       headerName: "單號",
@@ -683,7 +680,6 @@ export function Rentals() {
           getRowId={(p) => String(p.data.rental_number)}
           overlayNoRowsTemplate={`<span class="opacity-50">尚無租借記錄</span>`}
           masterDetail
-          isRowMaster={(data) => data.rentals.length > 1}
           detailCellRendererParams={detailCellRendererParams}
           // AG Grid defaults the detail row slot to 300px (≈7 rows × 36px),
           // which clipped rentals with >7 devices. Letting the slot auto-fit

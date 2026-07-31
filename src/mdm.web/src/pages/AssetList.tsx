@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDialog } from "../components/DialogProvider";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { Search, Plus, Download, Filter, X, Edit3, Trash2, FileDown, Upload } from "lucide-react";
 import type { ColDef, ICellRendererParams } from "ag-grid-enterprise";
 import apiClient from "../lib/apiClient";

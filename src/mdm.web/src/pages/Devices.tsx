@@ -3,7 +3,7 @@ import { useAuthStore } from "../stores/authStore";
 import { useDeviceStore, type DeviceRow } from "../stores/deviceStore";
 import { useTranslation } from "react-i18next";
 import { useDialog } from "../components/DialogProvider";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router";
 import { Search, RefreshCw, Send, Info, X, Filter, Download, Cloud, Zap } from "lucide-react";
 import type { ColDef, ICellRendererParams, RowSelectionOptions } from "ag-grid-enterprise";
 import apiClient from "../lib/apiClient";

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuthStore } from "../stores/authStore";
 import { useEventStore } from "../stores/eventStore";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { Tablet, Wifi, WifiOff, Terminal, Radio, RefreshCw, Check, AlertCircle, Clock, UserCheck } from "lucide-react";
 import apiClient from "../lib/apiClient";
 import type { Device } from "../gen/mdm/v1/device_pb";
